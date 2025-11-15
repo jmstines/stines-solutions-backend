@@ -1,0 +1,23 @@
+{
+  "name": "lambda-contact",
+  "version": "1.0.0",
+  "main": "dist/sendEmailApi.js",
+  "scripts": {
+    "build": "tsc",
+    "zip": "npm run build && node ./scripts/zip.js",
+    "tf:init": "cd terraform && terraform init",
+    "tf:plan": "cd terraform && terraform plan",
+    "tf:apply": "cd terraform && terraform apply -auto-approve",
+    "deploy": "npm run zip && npm run tf:apply"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1484.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.119",
+    "@types/node": "^24.10.1",
+    "archiver": "^5.3.1",
+    "cross-zip": "^4.0.1",
+    "typescript": "^5.0.0"
+  }
+}

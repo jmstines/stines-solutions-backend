@@ -1,0 +1,21 @@
+
+{
+  "compilerOptions": {
+    "target": "ES2020",            // Modern JS features
+    "module": "commonjs",          // Required for Node.js
+    "moduleResolution":"node",
+    "isolatedModules": true,
+    "strict": true,                // Enable strict type checking
+    "esModuleInterop": true,       // Allow default imports from CommonJS
+    "preserveConstEnums": true,
+    "sourceMap": false,
+    "noEmit": false,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "dist",              // Compiled output directory
+    "resolveJsonModule": true,     // If you use JSON imports
+    "skipLibCheck": true,           // Speeds up compilation
+    "types": ["node", "aws-lambda"]
+  },
+  "include": ["src"],              // Your source folder
+  "exclude": ["node_modules", "dist"]
+}
