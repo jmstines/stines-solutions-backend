@@ -1,17 +1,66 @@
-name: Deploy Lambda
+name: Terraform Deploy
+
 on:
   push:
-    branches: [ main ]
+    branches: [ "master" ]  
+  pull_request:
+    branches: [ "master" ]
+
+  workflow_dispatch:
+
 jobs:
-  deploy:
+  terraform:
     runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./infrastructure
+
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      - run: npm install && npm run build
+      - name: Checkout
+        uses: actions/checkout@v3
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
-      - run: terraform init && terraform apply -auto-approve
+        with:
+          terraform_version: 1.8.0
+     
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build project
+        run: npm run build   # Creates /dist folder
+
+      - name: List files in dist
+        run: find ${{ github.workspace }}/dist -type f
+
+      - name: Move dist folder for Terraform
+        run: cp -r ${{ github.workspace }}/dist ./dist
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Plan
+        env:
+            TF_VAR_source_email: ${{ secrets.SOURCE_EMAIL }}
+            TF_VAR_destination_email: ${{ secrets.DESTINATION_EMAIL }}
+        run: terraform plan
+
+      - name: Terraform Apply
+        env:
+            TF_VAR_source_email: ${{ secrets.SOURCE_EMAIL }}
+            TF_VAR_destination_email: ${{ secrets.DESTINATION_EMAIL }}        
+        run: terraform apply -auto-approve
