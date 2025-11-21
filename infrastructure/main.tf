@@ -38,8 +38,8 @@ resource "aws_lambda_function" "contact_lambda" {
   role          = aws_iam_role.lambda_role.arn
   handler       = "handler.handler"
   runtime       = "nodejs18.x"
-  filename      = "${path.module}/../dist/lambda.zip" # Zip your build output
-  source_code_hash = filebase64sha256("${path.module}/../dist/lambda.zip")
+  filename      = "${path.module}/dist/index.zip" # Zip your build output
+  source_code_hash = filebase64sha256("${path.module}/dist/index.zip")
   
   environment {
   variables = {
