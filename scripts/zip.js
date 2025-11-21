@@ -1,25 +1,14 @@
-const fs = require('fs');
-const path = require('path');
-const archiver = require('archiver');
-const { execSync } = require('child_process');
+const fs = require('fs')
+const path = require('path')
+const archiver = require('archiver')
 
-const projectRoot = path.join(__dirname, '..');
-const distPath = path.join(projectRoot, 'dist');
-const outPath = path.join(distPath, 'index.zip');
+const projectRoot = path.join(__dirname, '..')
+const inPath = path.join(projectRoot, 'dist')
+const outPath = path.join(inPath, 'index.zip')
 
-// Ensure dist exists
-fs.mkdirSync(distPath, { recursive: true });
+fs.mkdirSync(inPath, { recursive: true })
 
-// 1. Install production dependencies
-console.log('Installing production dependencies...');
-execSync('npm install --production', { cwd: projectRoot, stdio: 'inherit' });
-
-// 2. Copy required files into dist
-console.log('Copying files to dist...');
-fs.copyFileSync(path.join(projectRoot, 'sendEmailApi.js'), path.join(distPath, 'sendEmailApi.js'));
-fs.copyFileSync(path.join(projectRoot, 'package.json'), path.join(distPath, 'package.json'));
-
-// Copy node_modules recursively
+console.log('Copying node_modules and package.json...');
 const copyDir = (src, dest) => {
   fs.mkdirSync(dest, { recursive: true });
   for (const item of fs.readdirSync(src)) {
@@ -32,22 +21,22 @@ const copyDir = (src, dest) => {
     }
   }
 };
-copyDir(path.join(projectRoot, 'node_modules'), path.join(distPath, 'node_modules'));
+copyDir(path.join(projectRoot, 'node_modules'), path.join(inPath, 'node_modules'));
+fs.copyFileSync(path.join(projectRoot, 'package.json'), path.join(inPath, 'package.json'));
 
-// 3. Create zip
-console.log('Creating zip...');
-const output = fs.createWriteStream(outPath);
-const archive = archiver('zip', { zlib: { level: 9 } });
+const output = fs.createWriteStream(outPath)
+const archive = archiver('zip', { zlib: { level: 9 } })
 
 output.on('close', () => {
-  console.log('Created', outPath, `(${archive.pointer()} bytes)`);
-});
+  console.log('Created', outPath, `(${archive.pointer()} bytes)`)
+})
 
 archive.on('error', (err) => {
-  console.error('Zip failed:', err);
-  process.exit(1);
-});
+  console.error('Zip failed:', err)
+  process.exit(1)
+})
 
-archive.pipe(output);
-archive.glob('**/*', { cwd: distPath, ignore: ['index.zip'] });
-archive.finalize();
+archive.pipe(output)
+// Add everything from dist, but ignore the output zip if it already exists
+archive.glob('**/*', { cwd: inPath, ignore: ['index.zip'] })
+archive.finalize()
