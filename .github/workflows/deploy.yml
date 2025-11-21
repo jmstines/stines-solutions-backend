@@ -35,7 +35,7 @@ jobs:
         run: npm install
 
       - name: Build project
-        run: npm run build   # Creates /dist folder
+        run: npm run zip
 
       - name: List files in dist
         run: find ${{ github.workspace }}/dist -type f
