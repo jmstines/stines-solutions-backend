@@ -12,6 +12,11 @@ resource "aws_iam_role" "lambda_role" {
   })
 }
 
+resource "aws_iam_role_policy_attachment" "lambda_basic_attach" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
 resource "aws_iam_policy" "lambda_ses_policy" {
   name        = "lambda-ses-policy"
   description = "Allow Lambda to send email via SES"
@@ -36,17 +41,17 @@ resource "aws_iam_role_policy_attachment" "lambda_ses_attach" {
 resource "aws_lambda_function" "contact_lambda" {
   function_name = var.lambda_function_name
   role          = aws_iam_role.lambda_role.arn
-  handler       = "handler.handler"
+  handler       = "sendEmailApi.handler"
   runtime       = "nodejs18.x"
   filename      = "${path.module}/dist/index.zip" # Zip your build output
   source_code_hash = filebase64sha256("${path.module}/dist/index.zip")
   
   environment {
-  variables = {
-    SOURCE_EMAIL      = var.source_email
-    DESTINATION_EMAIL = var.destination_email
+    variables = {
+      SOURCE_EMAIL      = var.source_email
+      DESTINATION_EMAIL = var.destination_email
+    }
   }
-}
 }
 
 resource "aws_api_gateway_rest_api" "contact_api" {
@@ -65,6 +70,16 @@ resource "aws_api_gateway_method" "contact_post" {
   resource_id   = aws_api_gateway_resource.contact_resource.id
   http_method   = "POST"
   authorization = "NONE"
+}
+
+resource "aws_api_gateway_method_response" "cors" {
+  rest_api_id = aws_api_gateway_rest_api.contact_api.id
+  resource_id = aws_api_gateway_resource.contact_resource.id
+  http_method = aws_api_gateway_method.contact_post.http_method
+  status_code = "200"
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = true
+  }
 }
 
 resource "aws_api_gateway_integration" "lambda_integration" {
@@ -87,4 +102,10 @@ resource "aws_lambda_permission" "api_gateway_permission" {
 resource "aws_api_gateway_deployment" "contact_deployment" {
   depends_on  = [aws_api_gateway_integration.lambda_integration]
   rest_api_id = aws_api_gateway_rest_api.contact_api.id
+}
+
+resource "aws_api_gateway_stage" "contact_stage" {
+  deployment_id = aws_api_gateway_deployment.contact_deployment.id
+  rest_api_id   = aws_api_gateway_rest_api.contact_api.id
+  stage_name    = "prod"
 }
