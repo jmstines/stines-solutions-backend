@@ -32,18 +32,11 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     await ses.sendEmail(params).promise();
 
-    const origin = event.headers.origin || "";
-    const allowedDomain = /\.stinessolutions\.com$/;
-
     const corsHeaders = {
-      "Access-Control-Allow-Origin": allowedDomain.test(origin) ? origin : "",
+      "Access-Control-Allow-Origin": `https://${process.env.DOMAIN_NAME}`,
       "Access-Control-Allow-Methods": "OPTIONS,POST",
       "Access-Control-Allow-Headers": "Content-Type"
     };
-
-    if (event.httpMethod === "OPTIONS") {
-      return { statusCode: 200, headers: corsHeaders, body: "" };
-    }
 
     return {
       statusCode: 200,

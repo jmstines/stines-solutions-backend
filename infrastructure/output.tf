@@ -7,3 +7,8 @@ output "api_routes" {
     contact   = "/contact"
   }
 }
+
+output "api_domain_name" {
+  value = "${aws_route53_record.api_gateway_record.name}"
+}
+

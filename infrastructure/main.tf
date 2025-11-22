@@ -60,6 +60,7 @@ resource "aws_lambda_function" "contact_lambda" {
     variables = {
       SOURCE_EMAIL      = var.source_email
       DESTINATION_EMAIL = var.destination_email
+      DOMAIN_NAME       = "${aws_route53_record.api_gateway_record.name}"
     }
   }
 }
@@ -73,6 +74,13 @@ resource "aws_api_gateway_resource" "contact_resource" {
   rest_api_id = aws_api_gateway_rest_api.contact_api.id
   parent_id   = aws_api_gateway_rest_api.contact_api.root_resource_id
   path_part   = "contact"
+}
+
+resource "aws_api_gateway_method" "options" {
+  rest_api_id   = aws_api_gateway_rest_api.contact_api.id
+  resource_id   = aws_api_gateway_resource.contact_resource.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
 }
 
 resource "aws_api_gateway_method" "contact_post" {
@@ -89,6 +97,42 @@ resource "aws_api_gateway_method_response" "cors" {
   status_code = "200"
   response_parameters = {
     "method.response.header.Access-Control-Allow-Origin" = true
+  }
+}
+
+resource "aws_api_gateway_method_response" "options" {
+  rest_api_id = aws_api_gateway_rest_api.contact_api.id
+  resource_id = aws_api_gateway_resource.contact_resource.id
+  http_method = aws_api_gateway_method.options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "options" {
+  rest_api_id = aws_api_gateway_rest_api.contact_api.id
+  resource_id = aws_api_gateway_resource.contact_resource.id
+  http_method = aws_api_gateway_method.options.http_method
+  status_code = aws_api_gateway_method_response.options.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = "'https://${aws_route53_record.api_gateway_record.name}'"
+    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type'"
+  }
+}
+
+resource "aws_api_gateway_integration" "options" {
+  rest_api_id             = aws_api_gateway_rest_api.contact_api.id
+  resource_id             = aws_api_gateway_resource.contact_resource.id
+  http_method             = aws_api_gateway_method.options.http_method
+  type                    = "MOCK"
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
   }
 }
 
