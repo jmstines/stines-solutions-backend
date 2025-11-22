@@ -6,8 +6,8 @@
     "build": "tsc",
     "zip": "npm run build && node ./scripts/zip.js",
     "tf:init": "cd infrastructure && terraform init",
-    "tf:plan": "cd infrastructure && terraform plan",
-    "tf:apply": "cd infrastructure && terraform apply -auto-approve",
+    "tf:plan": "npm run build && npm run zip && cd infrastructure && terraform plan",
+    "tf:apply": "npm run build && npm run zip && cd infrastructure && terraform apply",
     "deploy": "npm run zip && npm run tf:apply"
   },
   "dependencies": {
