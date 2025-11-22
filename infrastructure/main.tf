@@ -180,6 +180,10 @@ resource "aws_api_gateway_deployment" "contact_deployment" {
     aws_api_gateway_integration.lambda_integration,
     aws_api_gateway_integration.options
   ]
+  
+  lifecycle {
+      create_before_destroy = true
+  }
 }
 
 resource "aws_api_gateway_stage" "contact_stage" {
