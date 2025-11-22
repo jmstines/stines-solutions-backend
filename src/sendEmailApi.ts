@@ -34,6 +34,11 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     return {
       statusCode: 200,
+      headers: {
+          "Access-Control-Allow-Origin": "https://*.stinessolutions.com",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Allow-Methods": "OPTIONS,POST"
+        },
       body: JSON.stringify({ message: "Email sent successfully" }),
     };
   } catch (error: any) {
