@@ -16,9 +16,9 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     }
 
     const params: AWS.SES.SendEmailRequest = {
-      Source: process.env.SOURCE_EMAIL || "verified-source@example.com", // Verified in SES
+      Source: process.env.SOURCE_EMAIL!,
       Destination: {
-        ToAddresses: [process.env.DESTINATION_EMAIL || "jmstines00@example.com"], // Verified if SES sandbox
+        ToAddresses: [process.env.DESTINATION_EMAIL!],
       },
       Message: {
         Subject: { Data: `New Contact from ${name}` },
@@ -39,7 +39,11 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   } catch (error: any) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
+      body: JSON.stringify({ 
+        error: error.message,
+        destinationEmail: process.env.DESTINATION_EMAIL,
+        sourceEmail: process.env.SOURCE_EMAIL,
+      }),
     };
   }
 };
