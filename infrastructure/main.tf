@@ -1,3 +1,13 @@
+terraform {
+  backend "s3" {
+    bucket         = "stines-solutions-state-bucket"
+    key            = "backend/terraform.tfstate" # unique path for this project
+    region         = "us-east-1"
+    dynamodb_table = "terraform-locks"          # optional for locking
+    encrypt        = true
+  }
+}
+
 resource "aws_iam_role" "lambda_role" {
   name = var.lambda_role_name
   assume_role_policy = jsonencode({
