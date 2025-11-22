@@ -32,15 +32,25 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     await ses.sendEmail(params).promise();
 
+    const origin = event.headers.origin || "";
+    const allowedDomain = /\.stinessolutions\.com$/;
+
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": allowedDomain.test(origin) ? origin : "",
+      "Access-Control-Allow-Methods": "OPTIONS,POST",
+      "Access-Control-Allow-Headers": "Content-Type"
+    };
+
+    if (event.httpMethod === "OPTIONS") {
+      return { statusCode: 200, headers: corsHeaders, body: "" };
+    }
+
     return {
       statusCode: 200,
-      headers: {
-          "Access-Control-Allow-Origin": "https://*.stinessolutions.com",
-          "Access-Control-Allow-Headers": "Content-Type",
-          "Access-Control-Allow-Methods": "OPTIONS,POST"
-        },
-      body: JSON.stringify({ message: "Email sent successfully" }),
+      headers: corsHeaders,
+      body: JSON.stringify({ message: "Email sent successfully" })
     };
+
   } catch (error: any) {
     return {
       statusCode: 500,
