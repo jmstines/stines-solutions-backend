@@ -165,8 +165,21 @@ resource "aws_lambda_permission" "api_gateway_permission" {
 }
 
 resource "aws_api_gateway_deployment" "contact_deployment" {
-  depends_on  = [aws_api_gateway_integration.lambda_integration]
   rest_api_id = aws_api_gateway_rest_api.contact_api.id
+
+  triggers = {
+      redeploy = sha1(join("", [
+        aws_api_gateway_method.options.id,
+        aws_api_gateway_method.contact_post.id,
+        aws_api_gateway_integration.options.id,
+        aws_api_gateway_integration.lambda_integration.id
+      ]))
+    }
+
+  depends_on = [
+    aws_api_gateway_integration.lambda_integration,
+    aws_api_gateway_integration.options
+  ]
 }
 
 resource "aws_api_gateway_stage" "contact_stage" {
