@@ -17,3 +17,8 @@ variable "source_email" {
 variable "destination_email" {
   description = "Destination email for contact form"
 }
+
+variable "domain_name" {
+  description = "Domain name for API Gateway custom domain"
+  default = "www.stinessolutions.com"
+}
