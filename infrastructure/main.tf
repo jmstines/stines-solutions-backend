@@ -174,7 +174,8 @@ resource "aws_api_gateway_deployment" "contact_deployment" {
       aws_api_gateway_integration.options.id,
       aws_api_gateway_integration.lambda_integration.id,
       aws_api_gateway_integration_response.options.id,
-      aws_api_gateway_integration_response.contact_post.id
+      aws_api_gateway_integration_response.contact_post.id,
+      timestamp()
     ]))
   }
 
