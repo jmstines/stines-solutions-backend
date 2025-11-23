@@ -20,5 +20,5 @@ variable "destination_email" {
 
 variable "domain_name" {
   description = "Domain name for API Gateway custom domain"
-  default = "'https://www.stinessolutions.com'"
+  default = "https://www.stinessolutions.com"
 }
