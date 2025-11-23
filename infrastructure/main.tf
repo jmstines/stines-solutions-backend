@@ -60,7 +60,7 @@ resource "aws_lambda_function" "contact_lambda" {
     variables = {
       SOURCE_EMAIL      = var.source_email
       DESTINATION_EMAIL = var.destination_email
-      DOMAIN_NAME       = "'${var.domain_name}'"
+      DOMAIN_NAME       = "${var.domain_name}"
     }
   }
 }
