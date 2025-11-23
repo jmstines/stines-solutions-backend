@@ -5,8 +5,11 @@ import AWS from 'aws-sdk';
 const ses = new AWS.SES();
 
 export const handler: APIGatewayProxyHandler = async (event) => {
-  const origin = (event.headers.origin || '').replace(/^https?:\/\/www\./, 'https://');
-  const allowedOrigin = origin === process.env.DOMAIN_NAME ? origin : '';
+  const normalizeOrigin = (url: string) => url.replace(/^https?:\/\/www\./, 'https://');
+
+  const origin = event.headers.origin || '';
+  const normalizedOrigin = normalizeOrigin(origin);
+  const allowedOrigin = normalizedOrigin === process.env.DOMAIN_NAME ? origin : '';
 
   const corsHeaders = {
     'Access-Control-Allow-Origin': allowedOrigin,
