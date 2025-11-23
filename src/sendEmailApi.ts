@@ -33,7 +33,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     await ses.sendEmail(params).promise();
 
     const corsHeaders = {
-      "Access-Control-Allow-Origin": `https://${process.env.DOMAIN_NAME}`,
+      "Access-Control-Allow-Origin": `${process.env.DOMAIN_NAME}`,
       "Access-Control-Allow-Methods": "OPTIONS,POST",
       "Access-Control-Allow-Headers": "Content-Type"
     };
