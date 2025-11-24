@@ -189,6 +189,26 @@ resource "aws_api_gateway_deployment" "contact_deployment" {
   }
 }
 
+resource "aws_api_gateway_rest_api_policy" "restrict_to_cloudfront" {
+  rest_api_id = aws_api_gateway_rest_api.contact_api.id
+  policy      = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = "*"
+        Action = "execute-api:Invoke"
+        Resource = "${aws_api_gateway_rest_api.contact_api.execution_arn}/*/*"
+        Condition = {
+          StringEquals = {
+            "aws:Referer" = var.domain_name
+          }
+        }
+      }
+    ]
+  })
+}
+
 resource "aws_api_gateway_stage" "contact_stage" {
   deployment_id = aws_api_gateway_deployment.contact_deployment.id
   rest_api_id   = aws_api_gateway_rest_api.contact_api.id
