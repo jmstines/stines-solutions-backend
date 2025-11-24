@@ -233,6 +233,10 @@ resource "aws_iam_role_policy_attachment" "api_gateway_logging_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
 }
 
+resource "aws_api_gateway_account" "account_settings" {
+  cloudwatch_role_arn = aws_iam_role.api_gateway_logging_role.arn
+}
+
 resource "aws_api_gateway_stage" "contact_stage" {
   deployment_id = aws_api_gateway_deployment.contact_deployment.id
   rest_api_id   = aws_api_gateway_rest_api.contact_api.id
