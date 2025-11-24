@@ -5,14 +5,22 @@ import AWS from 'aws-sdk';
 const ses = new AWS.SES();
 
 export const handler: APIGatewayProxyHandler = async (event) => {
-  const normalizeOrigin = (url: string) => url.replace(/^https?:\/\/(www\.)?/, 'https://');
+  // const normalizeOrigin = (url: string) => url.replace(/^https?:\/\/(www\.)?/, 'https://');
 
-  const origin = event.headers.origin || '';
-  const normalizedOrigin = normalizeOrigin(origin);
-  const normalizedDomain = normalizeOrigin(process.env.DOMAIN_NAME || '');
-  const allowedOrigin = normalizedOrigin === normalizedDomain ? origin : '';
+  // const origin = event.headers.origin || '';
+  // const normalizedOrigin = normalizeOrigin(origin);
+  // const normalizedDomain = normalizeOrigin(process.env.DOMAIN_NAME || '');
+  // const allowedOrigin = normalizedOrigin === normalizedDomain ? origin : '';
 
-  console.log({ origin, normalizedOrigin, domain: process.env.DOMAIN_NAME });
+  // console.log({ origin, normalizedOrigin, domain: process.env.DOMAIN_NAME });
+
+  // const corsHeaders = {
+  //   'Access-Control-Allow-Origin': allowedOrigin,
+  //   'Access-Control-Allow-Methods': 'OPTIONS,POST',
+  //   'Access-Control-Allow-Headers': 'Content-Type'
+  // };
+  
+  const allowedOrigin = process.env.DOMAIN_NAME || 'https://www.stinessolutions.com';
 
   const corsHeaders = {
     'Access-Control-Allow-Origin': allowedOrigin,
