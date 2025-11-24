@@ -214,3 +214,61 @@ resource "aws_api_gateway_stage" "contact_stage" {
   rest_api_id   = aws_api_gateway_rest_api.contact_api.id
   stage_name    = "prod"
 }
+
+resource "aws_cloudwatch_log_group" "api_gateway_logs" {
+  name              = "/aws/api-gateway/contact-api"
+  retention_in_days = 14
+}
+
+resource "aws_iam_role" "api_gateway_logging_role" {
+  name = "api-gateway-logging-role"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "apigateway.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "api_gateway_logging_policy" {
+  role       = aws_iam_role.api_gateway_logging_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+}
+
+resource "aws_api_gateway_stage" "contact_stage" {
+  deployment_id = aws_api_gateway_deployment.contact_deployment.id
+  rest_api_id   = aws_api_gateway_rest_api.contact_api.id
+  stage_name    = "prod"
+
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.api_gateway_logs.arn
+    format          = jsonencode({
+      requestId      = "$context.requestId",
+      ip             = "$context.identity.sourceIp",
+      caller         = "$context.identity.caller",
+      user           = "$context.identity.user",
+      requestTime    = "$context.requestTime",
+      httpMethod     = "$context.httpMethod",
+      resourcePath   = "$context.resourcePath",
+      status         = "$context.status",
+      protocol       = "$context.protocol",
+      responseLength = "$context.responseLength"
+    })
+  }
+}
+
+resource "aws_api_gateway_method_settings" "all_methods" {
+  rest_api_id = aws_api_gateway_rest_api.contact_api.id
+  stage_name  = aws_api_gateway_stage.contact_stage.stage_name
+
+  method_path = "*/*" # applies to all resources and methods
+  settings {
+    metrics_enabled    = true
+    logging_level      = "INFO" # or "ERROR"
+    data_trace_enabled = true
+  }
+}
