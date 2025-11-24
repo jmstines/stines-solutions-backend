@@ -201,7 +201,7 @@ resource "aws_api_gateway_rest_api_policy" "restrict_to_cloudfront" {
         Resource = "${aws_api_gateway_rest_api.contact_api.execution_arn}/*/*"
         Condition = {
           StringEquals = {
-            "aws:Referer" = var.domain_name
+            "aws:Referer" = "'${var.domain_name}'"
           }
         }
       }
