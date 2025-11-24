@@ -20,6 +20,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     'Access-Control-Allow-Headers': 'Content-Type'
   };
 
+  console.log('CORS Headers:', corsHeaders);
+
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
