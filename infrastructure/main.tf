@@ -13,13 +13,13 @@ data "terraform_remote_state" "infrastructure" {
 
   config = {
     bucket = "stines-solutions-state-bucket"
-    key    = "vpc/terraform.tfstate"
+    key    = "infrastructure/terraform.tfstate"
     region = "us-east-1"
   }
 }
 
 data "aws_s3_object" "lambda_zip" {
-  bucket = aws_s3_bucket.lambda_artifacts.bucket
+  bucket = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
   key    = var.lambda_code_s3_key
 }
 
@@ -29,8 +29,8 @@ resource "aws_lambda_function" "contact_lambda" {
   handler       = "sendEmailApi.handler"
   runtime       = "nodejs18.x"
 
-  # Use S3 artifacts (provided by backend pipeline)
-  s3_bucket        = aws_s3_bucket.lambda_zip.bucket
+  # Use S3 artifacts from infrastructure project
+  s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
   s3_key           = var.lambda_code_s3_key
   source_code_hash = data.aws_s3_object.lambda_zip.etag  # ensures updates when key changes
 
