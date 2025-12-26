@@ -1,33 +1,30 @@
-
 import { APIGatewayProxyHandler } from 'aws-lambda';
 import AWS from 'aws-sdk';
 
 const ses = new AWS.SES();
 
 export const handler: APIGatewayProxyHandler = async (event) => {
-  // const normalizeOrigin = (url: string) => url.replace(/^https?:\/\/(www\.)?/, 'https://');
-
-  // const origin = event.headers.origin || '';
-  // const normalizedOrigin = normalizeOrigin(origin);
-  // const normalizedDomain = normalizeOrigin(process.env.DOMAIN_NAME || '');
-  // const allowedOrigin = normalizedOrigin === normalizedDomain ? origin : '';
-
-  // console.log({ origin, normalizedOrigin, domain: process.env.DOMAIN_NAME });
-
-  // const corsHeaders = {
-  //   'Access-Control-Allow-Origin': allowedOrigin,
-  //   'Access-Control-Allow-Methods': 'OPTIONS,POST',
-  //   'Access-Control-Allow-Headers': 'Content-Type'
-  // };
+  // Determine allowed origin for CORS
+  const origin = event.headers.origin || event.headers.Origin || '';
   
-  const allowedOrigin = process.env.DOMAIN_NAME || 'https://www.stinessolutions.com';
+  // Allowed domains for CORS
+  const allowedDomains = [
+    'https://stinessolutions.com',
+    'https://www.stinessolutions.com',
+    'https://d12r3fm58hfzcb.cloudfront.net'
+  ];
+  
+  // Check if origin is allowed
+  const allowedOrigin = allowedDomains.includes(origin) ? origin : 'https://www.stinessolutions.com';
 
   const corsHeaders = {
     'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Methods': 'OPTIONS,POST',
-    'Access-Control-Allow-Headers': 'Content-Type'
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Credentials': 'false'
   };
 
+  console.log('Request origin:', origin);
   console.log('CORS Headers:', corsHeaders);
 
   if (event.httpMethod === 'OPTIONS') {
