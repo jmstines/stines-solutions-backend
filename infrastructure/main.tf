@@ -8,44 +8,19 @@ terraform {
   }
 }
 
-resource "aws_iam_role" "lambda_role" {
-  name = var.lambda_role_name
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = {
-        Service = "lambda.amazonaws.com"
-      }
-    }]
-  })
+data "terraform_remote_state" "infrastructure" {
+  backend = "s3"
+
+  config = {
+    bucket = "stines-solutions-state-bucket"
+    key    = "vpc/terraform.tfstate"
+    region = "us-east-1"
+  }
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_basic_attach" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-resource "aws_iam_policy" "lambda_ses_policy" {
-  name        = "lambda-ses-policy"
-  description = "Allow Lambda to send email via SES"
-  policy      = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = [
-        "ses:SendEmail",
-        "ses:SendRawEmail"
-      ]
-      Effect   = "Allow"
-      Resource = "*"
-    }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "lambda_ses_attach" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = aws_iam_policy.lambda_ses_policy.arn
+data "aws_s3_object" "lambda_zip" {
+  bucket = aws_s3_bucket.lambda_artifacts.bucket
+  key    = var.lambda_code_s3_key
 }
 
 resource "aws_lambda_function" "contact_lambda" {
@@ -53,220 +28,17 @@ resource "aws_lambda_function" "contact_lambda" {
   role          = aws_iam_role.lambda_role.arn
   handler       = "sendEmailApi.handler"
   runtime       = "nodejs18.x"
-  filename         = "${abspath(path.module)}/../dist/index.zip"
-  source_code_hash = filebase64sha256("${abspath(path.module)}/../dist/index.zip")
-  
+
+  # Use S3 artifacts (provided by backend pipeline)
+  s3_bucket        = aws_s3_bucket.lambda_zip.bucket
+  s3_key           = var.lambda_code_s3_key
+  source_code_hash = data.aws_s3_object.lambda_zip.etag  # ensures updates when key changes
+
   environment {
     variables = {
       SOURCE_EMAIL      = var.source_email
       DESTINATION_EMAIL = var.destination_email
-      DOMAIN_NAME       = "${var.domain_name}"
+      DOMAIN_NAME       = terraform_remote_state.infrastructure.outputs.domain_name
     }
-  }
-}
-
-resource "aws_api_gateway_rest_api" "contact_api" {
-  name        = "contact-api"
-  description = "API Gateway for contact form"
-}
-
-resource "aws_api_gateway_resource" "contact_resource" {
-  rest_api_id = aws_api_gateway_rest_api.contact_api.id
-  parent_id   = aws_api_gateway_rest_api.contact_api.root_resource_id
-  path_part   = "contact"
-}
-
-resource "aws_api_gateway_method" "options" {
-  rest_api_id   = aws_api_gateway_rest_api.contact_api.id
-  resource_id   = aws_api_gateway_resource.contact_resource.id
-  http_method   = "OPTIONS"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_method" "contact_post" {
-  rest_api_id   = aws_api_gateway_rest_api.contact_api.id
-  resource_id   = aws_api_gateway_resource.contact_resource.id
-  http_method   = "POST"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_method_response" "cors" {
-  rest_api_id = aws_api_gateway_rest_api.contact_api.id
-  resource_id = aws_api_gateway_resource.contact_resource.id
-  http_method = aws_api_gateway_method.contact_post.http_method
-  status_code = "200"
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = true
-  }
-}
-
-resource "aws_api_gateway_method_response" "options" {
-  rest_api_id = aws_api_gateway_rest_api.contact_api.id
-  resource_id = aws_api_gateway_resource.contact_resource.id
-  http_method = aws_api_gateway_method.options.http_method
-  status_code = "200"
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin"  = true
-    "method.response.header.Access-Control-Allow-Methods" = true
-    "method.response.header.Access-Control-Allow-Headers" = true
-  }
-}
-
-resource "aws_api_gateway_integration_response" "options" {
-  rest_api_id = aws_api_gateway_rest_api.contact_api.id
-  resource_id = aws_api_gateway_resource.contact_resource.id
-  http_method = aws_api_gateway_method.options.http_method
-  status_code = aws_api_gateway_method_response.options.status_code
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin"  = "'${var.domain_name}'"
-    "method.response.header.Access-Control-Allow-Methods" = "'OPTIONS,POST'"
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type'"
-  }
-}
-
-resource "aws_api_gateway_integration_response" "contact_post" {
-  rest_api_id = aws_api_gateway_rest_api.contact_api.id
-  resource_id = aws_api_gateway_resource.contact_resource.id
-  http_method = aws_api_gateway_method.contact_post.http_method
-  status_code = aws_api_gateway_method_response.cors.status_code
-
-  response_parameters = {
-    "method.response.header.Access-Control-Allow-Origin" = "'${var.domain_name}'"
-  }
-}
-
-resource "aws_api_gateway_integration" "options" {
-  rest_api_id             = aws_api_gateway_rest_api.contact_api.id
-  resource_id             = aws_api_gateway_resource.contact_resource.id
-  http_method             = aws_api_gateway_method.options.http_method
-  type                    = "MOCK"
-  request_templates = {
-    "application/json" = "{\"statusCode\": 200}"
-  }
-}
-
-resource "aws_api_gateway_integration" "lambda_integration" {
-  rest_api_id             = aws_api_gateway_rest_api.contact_api.id
-  resource_id             = aws_api_gateway_resource.contact_resource.id
-  http_method             = aws_api_gateway_method.contact_post.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.contact_lambda.invoke_arn
-}
-
-resource "aws_lambda_permission" "api_gateway_permission" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.contact_lambda.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.contact_api.execution_arn}/*/*"
-}
-
-resource "aws_api_gateway_deployment" "contact_deployment" {
-  rest_api_id = aws_api_gateway_rest_api.contact_api.id
-
-  triggers = {
-    redeploy = sha1(join("", [
-      aws_api_gateway_method.options.id,
-      aws_api_gateway_method.contact_post.id,
-      aws_api_gateway_integration.options.id,
-      aws_api_gateway_integration.lambda_integration.id,
-      aws_api_gateway_integration_response.options.id,
-      aws_api_gateway_integration_response.contact_post.id,
-      timestamp()
-    ]))
-  }
-
-  depends_on = [
-    aws_api_gateway_integration.lambda_integration,
-    aws_api_gateway_integration.options
-  ]
-  
-  lifecycle {
-      create_before_destroy = true
-  }
-}
-
-resource "aws_api_gateway_rest_api_policy" "restrict_to_cloudfront" {
-  rest_api_id = aws_api_gateway_rest_api.contact_api.id
-  policy      = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = "*"
-        Action = "execute-api:Invoke"
-        Resource = "${aws_api_gateway_rest_api.contact_api.execution_arn}/*/*"
-        Condition = {
-          StringEquals = {
-            "aws:Referer": "https://www.stinessolutions.com"
-          }
-        }
-      }
-    ]
-  })
-}
-
-resource "aws_cloudwatch_log_group" "api_gateway_logs" {
-  name              = "/aws/api-gateway/contact-api"
-  retention_in_days = 14
-}
-
-resource "aws_iam_role" "api_gateway_logging_role" {
-  name = "api-gateway-logging-role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Service = "apigateway.amazonaws.com"
-      }
-      Action = "sts:AssumeRole"
-    }]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "api_gateway_logging_policy" {
-  role       = aws_iam_role.api_gateway_logging_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
-}
-
-resource "aws_api_gateway_account" "account_settings" {
-  cloudwatch_role_arn = aws_iam_role.api_gateway_logging_role.arn
-}
-
-resource "aws_api_gateway_stage" "contact_stage" {
-  deployment_id = aws_api_gateway_deployment.contact_deployment.id
-  rest_api_id   = aws_api_gateway_rest_api.contact_api.id
-  stage_name    = "prod"
-
-  access_log_settings {
-    destination_arn = aws_cloudwatch_log_group.api_gateway_logs.arn
-    format          = jsonencode({
-      requestId      = "$context.requestId",
-      ip             = "$context.identity.sourceIp",
-      caller         = "$context.identity.caller",
-      user           = "$context.identity.user",
-      requestTime    = "$context.requestTime",
-      httpMethod     = "$context.httpMethod",
-      resourcePath   = "$context.resourcePath",
-      status         = "$context.status",
-      protocol       = "$context.protocol",
-      responseLength = "$context.responseLength"
-    })
-  }
-}
-
-resource "aws_api_gateway_method_settings" "all_methods" {
-  rest_api_id = aws_api_gateway_rest_api.contact_api.id
-  stage_name  = aws_api_gateway_stage.contact_stage.stage_name
-
-  method_path = "*/*" # applies to all resources and methods
-  settings {
-    metrics_enabled    = true
-    logging_level      = "INFO" # or "ERROR"
-    data_trace_enabled = true
   }
 }

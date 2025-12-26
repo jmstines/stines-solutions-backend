@@ -63,4 +63,4 @@ jobs:
         env:
             TF_VAR_source_email: ${{ secrets.SOURCE_EMAIL }}
             TF_VAR_destination_email: ${{ secrets.DESTINATION_EMAIL }}        
-        run: terraform apply -auto-approve
+        run: terraform apply -auto-approve -var="lambda_code_s3_key=lambda/contact/${GIT_SHA}.zip"
