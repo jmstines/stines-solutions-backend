@@ -3,7 +3,6 @@ terraform {
     bucket         = "stines-solutions-state-bucket"
     key            = "backend/terraform.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "terraform-locks"
     encrypt        = true
   }
 }
