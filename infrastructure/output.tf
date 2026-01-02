@@ -1,9 +1,11 @@
 output "api_gateway_url" {
-  value = "${aws_api_gateway_stage.contact_stage.invoke_url}"
+  value = data.terraform_remote_state.infrastructure.outputs.api_gateway_url
 }
 
-output "api_routes" {
-  value = {
-    contact   = "/contact"
-  }
+output "lambda_function_name" {
+  value = aws_lambda_function.contact_lambda.function_name
+}
+
+output "lambda_arn" {
+  value = aws_lambda_function.contact_lambda.arn
 }
