@@ -1,5 +1,11 @@
 output "api_gateway_url" {
-  value = data.terraform_remote_state.infrastructure.outputs.api_gateway_url
+  value       = "https://${aws_api_gateway_domain_name.api_domain.domain_name}"
+  description = "Custom domain URL for the API Gateway"
+}
+
+output "api_gateway_base_url" {
+  value       = aws_api_gateway_stage.backend_stage.invoke_url
+  description = "Direct AWS API Gateway URL"
 }
 
 output "lambda_function_name" {
