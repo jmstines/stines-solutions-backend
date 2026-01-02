@@ -3,6 +3,12 @@ import AWS from 'aws-sdk';
 
 const ses = new AWS.SES();
 
+// Validation constants
+const MAX_NAME_LENGTH = 100;
+const MAX_EMAIL_LENGTH = 100;
+const MAX_MESSAGE_LENGTH = 5000;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export const handler: APIGatewayProxyHandler = async (event) => {
   // Determine allowed origin for CORS
   const headers = event.headers || {};
@@ -40,6 +46,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     const body = JSON.parse(event.body || '{}');
     const { name, email, message } = body;
 
+    // Validation
     if (!name || !email || !message) {
       return {
         statusCode: 400,
@@ -48,16 +55,41 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       };
     }
 
+    // Email format validation
+    if (!EMAIL_REGEX.test(email)) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Invalid email format' })
+      };
+    }
+
+    // Length limits
+    if (name.length > MAX_NAME_LENGTH || 
+        email.length > MAX_EMAIL_LENGTH || 
+        message.length > MAX_MESSAGE_LENGTH) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Input too long' })
+      };
+    }
+
+    // Sanitize inputs (basic XSS prevention)
+    const sanitizedName = name.trim().substring(0, MAX_NAME_LENGTH);
+    const sanitizedEmail = email.trim().substring(0, MAX_EMAIL_LENGTH);
+    const sanitizedMessage = message.trim().substring(0, MAX_MESSAGE_LENGTH);
+
     const params: AWS.SES.SendEmailRequest = {
       Source: process.env.SOURCE_EMAIL!,
       Destination: {
         ToAddresses: [process.env.DESTINATION_EMAIL!],
       },
       Message: {
-        Subject: { Data: `New Contact from ${name}` },
+        Subject: { Data: `New Contact from ${sanitizedName}` },
         Body: {
           Text: {
-            Data: `Name: ${name}\nEmail: ${email}\nMessage:\n${message}`,
+            Data: `Name: ${sanitizedName}\nEmail: ${sanitizedEmail}\nMessage:\n${sanitizedMessage}`,
           },
         },
       },
