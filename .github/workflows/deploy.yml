@@ -35,7 +35,7 @@ jobs:
         run: npm install
 
       - name: Build project
-        run: npm run zip
+        run: npm run build && npm run zip
 
       - name: List files in dist
         run: find ${{ github.workspace }}/dist -type f
@@ -50,17 +50,31 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      - name: Upload Lambda to S3
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          aws s3 cp ./dist/index.zip "s3://stines-solutions-lambda-artifacts/lambda/contact/${GIT_SHA:0:7}.zip"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.8.0
+
       - name: Terraform Init
         run: terraform init
 
       - name: Terraform Plan
         env:
-            TF_VAR_source_email: ${{ secrets.SOURCE_EMAIL }}
-            TF_VAR_destination_email: ${{ secrets.DESTINATION_EMAIL }}
-        run: terraform plan
+          TF_VAR_source_email: ${{ secrets.SOURCE_EMAIL }}
+          TF_VAR_destination_email: ${{ secrets.DESTINATION_EMAIL }}
+          TF_VAR_lambda_code_s3_key: lambda/contact/${{ github.sha }}
+        run: terraform plan -out=tfplan
 
       - name: Terraform Apply
         env:
-            TF_VAR_source_email: ${{ secrets.SOURCE_EMAIL }}
-            TF_VAR_destination_email: ${{ secrets.DESTINATION_EMAIL }}        
-        run: terraform apply -auto-approve
+          TF_VAR_source_email: ${{ secrets.SOURCE_EMAIL }}
+          TF_VAR_destination_email: ${{ secrets.DESTINATION_EMAIL }}
+          TF_VAR_lambda_code_s3_key: lambda/contact/${{ github.sha }}
+        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        run: terraform apply -auto-approve tfplan

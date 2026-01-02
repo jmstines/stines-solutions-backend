@@ -1,9 +1,9 @@
 terraform {
   backend "s3" {
     bucket         = "stines-solutions-state-bucket"
-    key            = "backend/terraform.tfstate" # unique path for this project
+    key            = "backend/terraform.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "terraform-locks"          # optional for locking
+    dynamodb_table = "terraform-locks"
     encrypt        = true
   }
 }
