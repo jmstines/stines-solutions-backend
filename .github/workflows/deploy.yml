@@ -69,7 +69,11 @@ jobs:
           TF_VAR_source_email: ${{ secrets.SOURCE_EMAIL }}
           TF_VAR_destination_email: ${{ secrets.DESTINATION_EMAIL }}
           TF_VAR_lambda_code_s3_key: lambda/contact/${{ github.sha }}
-        run: terraform plan -out=tfplan
+        run: |
+          # Use truncated SHA for S3 key
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          terraform plan -var="lambda_code_s3_key=lambda/contact/${SHORT_SHA}.zip" -out=tfplan
 
       - name: Terraform Apply
         env:
@@ -77,4 +81,8 @@ jobs:
           TF_VAR_destination_email: ${{ secrets.DESTINATION_EMAIL }}
           TF_VAR_lambda_code_s3_key: lambda/contact/${{ github.sha }}
         if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-        run: terraform apply -auto-approve tfplan
+        run: |
+          # Use truncated SHA for S3 key
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          terraform apply -auto-approve -var="lambda_code_s3_key=lambda/contact/${SHORT_SHA}.zip" tfplan
