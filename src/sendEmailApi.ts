@@ -12,7 +12,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   const allowedDomains = [
     'https://stinessolutions.com',
     'https://www.stinessolutions.com',
-    'https://d12r3fm58hfzcb.cloudfront.net'
+    'https://api.stinessolutions.com'
   ];
   
   // Check if origin is allowed
