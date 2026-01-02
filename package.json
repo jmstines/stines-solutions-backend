@@ -8,16 +8,24 @@
     "tf:init": "cd infrastructure && terraform init",
     "tf:plan": "npm run build && npm run zip && cd infrastructure && terraform plan",
     "tf:apply": "npm run build && npm run zip && cd infrastructure && terraform apply",
-    "deploy": "npm run zip && npm run tf:apply"
+    "deploy": "npm run zip && npm run tf:apply",
+    "create-admin": "ts-node scripts/create-admin.ts"
   },
   "dependencies": {
-    "aws-sdk": "^2.1484.0"
+    "@aws-sdk/client-dynamodb": "^3.962.0",
+    "@aws-sdk/util-dynamodb": "^3.962.0",
+    "aws-sdk": "^2.1484.0",
+    "bcryptjs": "^2.4.3"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.119",
-    "@types/node": "^24.10.1",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^24.10.4",
+    "@types/uuid": "^10.0.0",
     "archiver": "^5.3.1",
     "cross-zip": "^4.0.1",
-    "typescript": "^5.0.0"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.0.0",
+    "uuid": "^10.0.0"
   }
 }
