@@ -54,7 +54,7 @@ jobs:
         env:
           GIT_SHA: ${{ github.sha }}
         run: |
-          aws s3 cp ./dist/index.zip "s3://stines-solutions-lambda-artifacts/lambda/contact/${GIT_SHA:0:7}.zip"
+          aws s3 cp ./dist/index.zip "s3://stines-solutions-lambda-artifacts/backend/lambda/${GIT_SHA:0:7}.zip"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -70,8 +70,7 @@ jobs:
           TF_VAR_destination_email: ${{ secrets.DESTINATION_EMAIL }}
           GIT_SHA: ${{ github.sha }}
         run: |
-          # Use truncated SHA for S3 key
-          export TF_VAR_lambda_code_s3_key="lambda/contact/${GIT_SHA:0:7}.zip"
+          export TF_VAR_lambda_code_s3_key="backend/lambda/${GIT_SHA:0:7}.zip"
           terraform plan -out=tfplan
 
       - name: Terraform Apply

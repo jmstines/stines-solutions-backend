@@ -118,6 +118,7 @@ resource "aws_lambda_function" "login_lambda" {
   handler       = "loginHandler.handler"
   runtime       = "nodejs18.x"
 
+  # All Lambda functions share the same deployment package
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
   s3_key           = var.lambda_code_s3_key
   source_code_hash = data.aws_s3_object.lambda_zip.etag
@@ -136,6 +137,7 @@ resource "aws_lambda_function" "verify_lambda" {
   handler       = "verifyHandler.handler"
   runtime       = "nodejs18.x"
 
+  # All Lambda functions share the same deployment package
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
   s3_key           = var.lambda_code_s3_key
   source_code_hash = data.aws_s3_object.lambda_zip.etag
@@ -154,6 +156,7 @@ resource "aws_lambda_function" "logout_lambda" {
   handler       = "logoutHandler.handler"
   runtime       = "nodejs18.x"
 
+  # All Lambda functions share the same deployment package
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
   s3_key           = var.lambda_code_s3_key
   source_code_hash = data.aws_s3_object.lambda_zip.etag
