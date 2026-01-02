@@ -5,7 +5,8 @@ const ses = new AWS.SES();
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   // Determine allowed origin for CORS
-  const origin = event.headers.origin || event.headers.Origin || '';
+  const headers = event.headers || {};
+  const origin = headers.origin || headers.Origin || '';
   
   // Allowed domains for CORS
   const allowedDomains = [
