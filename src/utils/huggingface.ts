@@ -53,25 +53,6 @@ async function getHfClient(): Promise<HfInference> {
 }
 
 /**
- * Format chat messages for the Hugging Face model
- */
-export function formatChatHistory(messages: Message[]): string {
-  // Simple format that works with most instruction-tuned models
-  let prompt = '';
-  for (const msg of messages) {
-    if (msg.role === 'system') {
-      prompt += `System: ${msg.content}\n\n`;
-    } else if (msg.role === 'user') {
-      prompt += `User: ${msg.content}\n\n`;
-    } else if (msg.role === 'assistant') {
-      prompt += `Assistant: ${msg.content}\n\n`;
-    }
-  }
-  prompt += 'Assistant: ';
-  return prompt;
-}
-
-/**
  * Call Hugging Face Inference API
  */
 export async function callInference(
@@ -91,23 +72,21 @@ export async function callInference(
     topP = 0.9,
   } = options;
 
-  // Format the conversation history
-  const prompt = formatChatHistory(messages);
-  
   try {  
-    const response = await client.textGeneration({
+    const response = await client.chatCompletion({
       model,
-      inputs: prompt,
-      parameters: {
-        max_new_tokens: maxTokens,
-        temperature,
-        top_p: topP,
-        return_full_text: false,
-      },
+      messages: messages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      })),
+      max_tokens: maxTokens,
+      temperature,
+      top_p: topP,
     });
 
-    if (response.generated_text) {
-      return response.generated_text.trim();
+    if (response.choices && response.choices.length > 0) {
+      const message = response.choices[0].message;
+      return message.content?.trim() || '';
     }
     
     throw new Error('Unexpected response format from Hugging Face API');
@@ -126,6 +105,6 @@ export async function callInference(
  * Get recommended model name
  */
 export function getDefaultModel(): string {
-  // Using HuggingFaceH4/zephyr-7b-beta - reliable instruction-tuned model
-  return 'HuggingFaceH4/zephyr-7b-beta';
+  // Using microsoft/Phi-3.5-mini-instruct - efficient and reliable chat model
+  return 'microsoft/Phi-3.5-mini-instruct';
 }
