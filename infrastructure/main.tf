@@ -7,6 +7,9 @@ terraform {
   }
 }
 
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
+
 data "terraform_remote_state" "infrastructure" {
   backend = "s3"
 
@@ -83,7 +86,18 @@ resource "aws_iam_role_policy" "lambda_dynamodb_policy" {
         Resource = [
           aws_dynamodb_table.users.arn,
           "${aws_dynamodb_table.users.arn}/index/*",
-          aws_dynamodb_table.sessions.arn
+          aws_dynamodb_table.sessions.arn,
+          aws_dynamodb_table.chat_history.arn,
+          "${aws_dynamodb_table.chat_history.arn}/index/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter"
+        ]
+        Resource = [
+          "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/stines-solutions/huggingface/*"
         ]
       }
     ]
@@ -108,6 +122,7 @@ resource "aws_lambda_function" "contact_lambda" {
       DOMAIN_NAME       = "stinessolutions.com"
       USERS_TABLE       = aws_dynamodb_table.users.name
       SESSIONS_TABLE    = aws_dynamodb_table.sessions.name
+      CHAT_HISTORY_TABLE = aws_dynamodb_table.chat_history.name
     }
   }
 }
@@ -164,6 +179,27 @@ resource "aws_lambda_function" "logout_lambda" {
   environment {
     variables = {
       SESSIONS_TABLE = aws_dynamodb_table.sessions.name
+    }
+  }
+}
+
+resource "aws_lambda_function" "chat_lambda" {
+  function_name = "chat-lambda"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "chatHandler.handler"
+  runtime       = "nodejs18.x"
+  timeout       = 30  # Increased timeout for API calls
+
+  # All Lambda functions share the same deployment package
+  s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
+  s3_key           = var.lambda_code_s3_key
+  source_code_hash = data.aws_s3_object.lambda_zip.etag
+
+  environment {
+    variables = {
+      USERS_TABLE        = aws_dynamodb_table.users.name
+      SESSIONS_TABLE     = aws_dynamodb_table.sessions.name
+      CHAT_HISTORY_TABLE = aws_dynamodb_table.chat_history.name
     }
   }
 }

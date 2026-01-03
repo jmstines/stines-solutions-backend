@@ -385,3 +385,187 @@ resource "aws_api_gateway_usage_plan" "backend_usage_plan" {
     rate_limit  = 50   # Requests per second
   }
 }
+
+# ===== /chat Resource =====
+resource "aws_api_gateway_resource" "chat_resource" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  parent_id   = aws_api_gateway_rest_api.backend_api.root_resource_id
+  path_part   = "chat"
+}
+
+# POST /chat - Send message
+resource "aws_api_gateway_method" "chat_post" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.chat_resource.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "chat_post" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.chat_resource.id
+  http_method             = aws_api_gateway_method.chat_post.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.chat_lambda.invoke_arn
+}
+
+resource "aws_lambda_permission" "api_gateway_chat" {
+  statement_id  = "AllowAPIGatewayInvokeChat"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.chat_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/*/*"
+}
+
+# OPTIONS /chat
+resource "aws_api_gateway_method" "chat_options" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.chat_resource.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "chat_options" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.chat_resource.id
+  http_method             = aws_api_gateway_method.chat_options.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.chat_lambda.invoke_arn
+}
+
+resource "aws_api_gateway_method_response" "chat_options" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  resource_id = aws_api_gateway_resource.chat_resource.id
+  http_method = aws_api_gateway_method.chat_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+  }
+}
+
+# /chat/conversations - List conversations
+resource "aws_api_gateway_resource" "chat_conversations" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  parent_id   = aws_api_gateway_resource.chat_resource.id
+  path_part   = "conversations"
+}
+
+resource "aws_api_gateway_method" "chat_conversations_get" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.chat_conversations.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "chat_conversations_get" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.chat_conversations.id
+  http_method             = aws_api_gateway_method.chat_conversations_get.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.chat_lambda.invoke_arn
+}
+
+# OPTIONS /chat/conversations
+resource "aws_api_gateway_method" "chat_conversations_options" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.chat_conversations.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "chat_conversations_options" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.chat_conversations.id
+  http_method             = aws_api_gateway_method.chat_conversations_options.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.chat_lambda.invoke_arn
+}
+
+resource "aws_api_gateway_method_response" "chat_conversations_options" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  resource_id = aws_api_gateway_resource.chat_conversations.id
+  http_method = aws_api_gateway_method.chat_conversations_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+  }
+}
+
+# /chat/conversations/{id} - Get/Delete specific conversation
+resource "aws_api_gateway_resource" "chat_conversation_id" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  parent_id   = aws_api_gateway_resource.chat_conversations.id
+  path_part   = "{id}"
+}
+
+resource "aws_api_gateway_method" "chat_conversation_get" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.chat_conversation_id.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "chat_conversation_get" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.chat_conversation_id.id
+  http_method             = aws_api_gateway_method.chat_conversation_get.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.chat_lambda.invoke_arn
+}
+
+resource "aws_api_gateway_method" "chat_conversation_delete" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.chat_conversation_id.id
+  http_method   = "DELETE"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "chat_conversation_delete" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.chat_conversation_id.id
+  http_method             = aws_api_gateway_method.chat_conversation_delete.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.chat_lambda.invoke_arn
+}
+
+# OPTIONS /chat/conversations/{id}
+resource "aws_api_gateway_method" "chat_conversation_options" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.chat_conversation_id.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "chat_conversation_options" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.chat_conversation_id.id
+  http_method             = aws_api_gateway_method.chat_conversation_options.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.chat_lambda.invoke_arn
+}
+
+resource "aws_api_gateway_method_response" "chat_conversation_options" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  resource_id = aws_api_gateway_resource.chat_conversation_id.id
+  http_method = aws_api_gateway_method.chat_conversation_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+  }
+}

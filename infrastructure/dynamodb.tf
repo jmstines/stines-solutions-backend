@@ -50,6 +50,51 @@ resource "aws_dynamodb_table" "sessions" {
   }
 }
 
+# Chat history table
+resource "aws_dynamodb_table" "chat_history" {
+  name         = "stines-solutions-chat-history"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "userId"
+  range_key    = "messageId"
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  attribute {
+    name = "messageId"
+    type = "S"
+  }
+
+  attribute {
+    name = "conversationId"
+    type = "S"
+  }
+
+  attribute {
+    name = "timestamp"
+    type = "N"
+  }
+
+  global_secondary_index {
+    name            = "ConversationIndex"
+    hash_key        = "conversationId"
+    range_key       = "timestamp"
+    projection_type = "ALL"
+  }
+
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+
+  tags = {
+    Project     = "stines-solutions"
+    Environment = "production"
+  }
+}
+
 # Output table names for Lambda environment variables
 output "users_table_name" {
   value = aws_dynamodb_table.users.name
@@ -57,4 +102,8 @@ output "users_table_name" {
 
 output "sessions_table_name" {
   value = aws_dynamodb_table.sessions.name
+}
+
+output "chat_history_table_name" {
+  value = aws_dynamodb_table.chat_history.name
 }
