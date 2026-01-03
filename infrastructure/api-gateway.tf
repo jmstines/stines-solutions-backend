@@ -347,6 +347,32 @@ resource "aws_api_gateway_stage" "backend_stage" {
 }
 
 # ===== CloudWatch Logs =====
+# IAM role for API Gateway to write to CloudWatch Logs
+resource "aws_iam_role" "api_gateway_cloudwatch" {
+  name = "api-gateway-cloudwatch-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "apigateway.amazonaws.com"
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "api_gateway_cloudwatch" {
+  role       = aws_iam_role.api_gateway_cloudwatch.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+}
+
+# Set the CloudWatch Logs role for API Gateway at the account level
+resource "aws_api_gateway_account" "main" {
+  cloudwatch_role_arn = aws_iam_role.api_gateway_cloudwatch.arn
+}
+
 resource "aws_cloudwatch_log_group" "api_gateway" {
   name              = "/aws/apigateway/backend-api"
   retention_in_days = 7
@@ -362,6 +388,8 @@ resource "aws_api_gateway_method_settings" "all" {
     data_trace_enabled = true
     metrics_enabled    = true
   }
+
+  depends_on = [aws_api_gateway_account.main]
 }
 
 # ===== Custom Domain =====
