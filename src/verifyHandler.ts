@@ -1,18 +1,14 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
 import { getSession, getUserById } from './utils/auth';
-
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': 'https://www.stinessolutions.com',
-  'Access-Control-Allow-Methods': 'OPTIONS,GET',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Credentials': 'true'
-};
+import { getCorsHeaders } from './utils/cors';
 
 export const handler: APIGatewayProxyHandler = async (event) => {
+  const corsHeaders = getCorsHeaders(event.headers.origin || event.headers.Origin);
+
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
-      headers: CORS_HEADERS,
+      headers: corsHeaders,
       body: ''
     };
   }
@@ -26,7 +22,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     if (!sessionId) {
       return {
         statusCode: 401,
-        headers: CORS_HEADERS,
+        headers: corsHeaders,
         body: JSON.stringify({ error: 'Not authenticated' })
       };
     }
@@ -35,7 +31,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     if (!session) {
       return {
         statusCode: 401,
-        headers: CORS_HEADERS,
+        headers: corsHeaders,
         body: JSON.stringify({ error: 'Invalid or expired session' })
       };
     }
@@ -44,14 +40,14 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     if (!user) {
       return {
         statusCode: 401,
-        headers: CORS_HEADERS,
+        headers: corsHeaders,
         body: JSON.stringify({ error: 'User not found' })
       };
     }
 
     return {
       statusCode: 200,
-      headers: CORS_HEADERS,
+      headers: corsHeaders,
       body: JSON.stringify({
         user: {
           userId: user.userId,
@@ -65,7 +61,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     console.error('Verify error:', error);
     return {
       statusCode: 500,
-      headers: CORS_HEADERS,
+      headers: corsHeaders,
       body: JSON.stringify({ error: 'Internal server error' })
     };
   }

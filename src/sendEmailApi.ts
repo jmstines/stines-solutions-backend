@@ -1,5 +1,6 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
 import AWS from 'aws-sdk';
+import { getCorsHeaders } from './utils/cors';
 
 const ses = new AWS.SES();
 
@@ -10,26 +11,16 @@ const MAX_MESSAGE_LENGTH = 5000;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const handler: APIGatewayProxyHandler = async (event) => {
-  // Determine allowed origin for CORS
-  const headers = event.headers || {};
-  const origin = headers.origin || headers.Origin || '';
-  
-  // Allowed domains for CORS
-  const allowedDomains = [
-    'https://stinessolutions.com',
-    'https://www.stinessolutions.com',
-    'https://api.stinessolutions.com'
-  ];
-  
-  // Check if origin is allowed
-  const allowedOrigin = allowedDomains.includes(origin) ? origin : 'https://www.stinessolutions.com';
+  const corsHeaders = getCorsHeaders(event.headers.origin || event.headers.Origin);
 
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Methods': 'OPTIONS,POST',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Credentials': 'false'
-  };
+  // Handle OPTIONS request
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: corsHeaders,
+      body: ''
+    };
+  }
 
   console.log('Request origin:', origin);
   console.log('CORS Headers:', corsHeaders);

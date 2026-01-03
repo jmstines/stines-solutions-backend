@@ -1,18 +1,14 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
 import { getUserByEmail, verifyPassword, createSession } from './utils/auth';
-
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': 'https://www.stinessolutions.com',
-  'Access-Control-Allow-Methods': 'OPTIONS,POST',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Credentials': 'true'
-};
+import { getCorsHeaders } from './utils/cors';
 
 export const handler: APIGatewayProxyHandler = async (event) => {
+  const corsHeaders = getCorsHeaders(event.headers.origin || event.headers.Origin);
+
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
-      headers: CORS_HEADERS,
+      headers: corsHeaders,
       body: ''
     };
   }
@@ -24,7 +20,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     if (!email || !password) {
       return {
         statusCode: 400,
-        headers: CORS_HEADERS,
+        headers: corsHeaders,
         body: JSON.stringify({ error: 'Email and password required' })
       };
     }
@@ -34,7 +30,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     if (!user) {
       return {
         statusCode: 401,
-        headers: CORS_HEADERS,
+        headers: corsHeaders,
         body: JSON.stringify({ error: 'Invalid credentials' })
       };
     }
@@ -44,7 +40,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     if (!validPassword) {
       return {
         statusCode: 401,
-        headers: CORS_HEADERS,
+        headers: corsHeaders,
         body: JSON.stringify({ error: 'Invalid credentials' })
       };
     }
@@ -55,7 +51,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     return {
       statusCode: 200,
       headers: {
-        ...CORS_HEADERS,
+        ...corsHeaders,
         'Set-Cookie': `sessionId=${session.sessionId}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${24 * 60 * 60}`
       },
       body: JSON.stringify({
@@ -72,7 +68,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     console.error('Login error:', error);
     return {
       statusCode: 500,
-      headers: CORS_HEADERS,
+      headers: corsHeaders,
       body: JSON.stringify({ error: 'Internal server error' })
     };
   }
