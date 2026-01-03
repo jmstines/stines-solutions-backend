@@ -46,19 +46,19 @@ export async function getHuggingFaceToken(): Promise<string> {
  * Format chat messages for the Hugging Face model
  */
 export function formatChatHistory(messages: Message[]): string {
-  // Format for Phi-3 / general chat models
-  return messages
-    .map((msg) => {
-      if (msg.role === 'user') {
-        return `<|user|>\n${msg.content}<|end|>`;
-      } else if (msg.role === 'assistant') {
-        return `<|assistant|>\n${msg.content}<|end|>`;
-      } else if (msg.role === 'system') {
-        return `<|system|>\n${msg.content}<|end|>`;
-      }
-      return '';
-    })
-    .join('\n') + '\n<|assistant|>\n';
+  // Simple format that works with most instruction-tuned models
+  let prompt = '';
+  for (const msg of messages) {
+    if (msg.role === 'system') {
+      prompt += `System: ${msg.content}\n\n`;
+    } else if (msg.role === 'user') {
+      prompt += `User: ${msg.content}\n\n`;
+    } else if (msg.role === 'assistant') {
+      prompt += `Assistant: ${msg.content}\n\n`;
+    }
+  }
+  prompt += 'Assistant: ';
+  return prompt;
 }
 
 /**
@@ -140,6 +140,6 @@ export async function callInference(
  * Get recommended model name
  */
 export function getDefaultModel(): string {
-  // Using microsoft/Phi-3-mini-4k-instruct - reliable and fast
-  return 'microsoft/Phi-3-mini-4k-instruct';
+  // Using HuggingFaceH4/zephyr-7b-beta - reliable instruction-tuned model
+  return 'HuggingFaceH4/zephyr-7b-beta';
 }
