@@ -97,7 +97,6 @@ export async function callInference(
   try {
     const response = await client.textGeneration({
       model,
-      endpointUrl: 'https://router.huggingface.co',
       inputs: prompt,
       parameters: {
         max_new_tokens: maxTokens,
