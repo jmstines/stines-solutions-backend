@@ -1,4 +1,5 @@
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import { HfInference } from '@huggingface/inference';
 
 const ssmClient = new SSMClient({ region: 'us-east-1' });
 
@@ -7,12 +8,8 @@ interface Message {
   content: string;
 }
 
-interface HuggingFaceResponse {
-  generated_text?: string;
-  error?: string;
-}
-
 let cachedToken: string | null = null;
+let cachedClient: HfInference | null = null;
 
 /**
  * Get Hugging Face API token from AWS SSM Parameter Store
@@ -40,6 +37,19 @@ export async function getHuggingFaceToken(): Promise<string> {
     console.error('Error fetching Hugging Face token:', error);
     throw new Error('Failed to retrieve Hugging Face API token');
   }
+}
+
+/**
+ * Get Hugging Face client
+ */
+async function getHfClient(): Promise<HfInference> {
+  if (cachedClient) {
+    return cachedClient;
+  }
+
+  const token = await getHuggingFaceToken();
+  cachedClient = new HfInference(token);
+  return cachedClient;
 }
 
 /**
@@ -73,7 +83,7 @@ export async function callInference(
     topP?: number;
   } = {}
 ): Promise<string> {
-  const token = await getHuggingFaceToken();
+  const client = await getHfClient();
   
   const {
     maxTokens = 500,
@@ -83,45 +93,21 @@ export async function callInference(
 
   // Format the conversation history
   const prompt = formatChatHistory(messages);
-
-  const url = `https://api-inference.huggingface.co/models/${model}`;
   
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+    const response = await client.textGeneration({
+      model,
+      inputs: prompt,
+      parameters: {
+        max_new_tokens: maxTokens,
+        temperature,
+        top_p: topP,
+        return_full_text: false,
       },
-      body: JSON.stringify({
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: maxTokens,
-          temperature,
-          top_p: topP,
-          return_full_text: false,
-        },
-      }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Hugging Face API error:', response.status, errorText);
-      
-      // Handle model loading
-      if (response.status === 503) {
-        throw new Error('Model is loading, please try again in a few seconds');
-      }
-      
-      throw new Error(`Hugging Face API error: ${response.status}`);
-    }
-
-    const data: HuggingFaceResponse[] = await response.json();
-    
-    if (Array.isArray(data) && data[0]?.generated_text) {
-      return data[0].generated_text.trim();
-    } else if (data[0]?.error) {
-      throw new Error(data[0].error);
+    if (response.generated_text) {
+      return response.generated_text.trim();
     }
     
     throw new Error('Unexpected response format from Hugging Face API');
