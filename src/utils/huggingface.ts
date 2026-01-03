@@ -46,19 +46,19 @@ export async function getHuggingFaceToken(): Promise<string> {
  * Format chat messages for the Hugging Face model
  */
 export function formatChatHistory(messages: Message[]): string {
-  // Format for Mistral/Llama chat models
+  // Format for Phi-3 / general chat models
   return messages
     .map((msg) => {
       if (msg.role === 'user') {
-        return `[INST] ${msg.content} [/INST]`;
+        return `<|user|>\n${msg.content}<|end|>`;
       } else if (msg.role === 'assistant') {
-        return msg.content;
+        return `<|assistant|>\n${msg.content}<|end|>`;
       } else if (msg.role === 'system') {
-        return `[INST] ${msg.content} [/INST]`;
+        return `<|system|>\n${msg.content}<|end|>`;
       }
       return '';
     })
-    .join('\n');
+    .join('\n') + '\n<|assistant|>\n';
 }
 
 /**
@@ -140,5 +140,6 @@ export async function callInference(
  * Get recommended model name
  */
 export function getDefaultModel(): string {
-  return 'mistralai/Mistral-7B-Instruct-v0.2';
+  // Using microsoft/Phi-3-mini-4k-instruct - reliable and fast
+  return 'microsoft/Phi-3-mini-4k-instruct';
 }
