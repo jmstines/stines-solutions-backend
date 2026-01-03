@@ -365,9 +365,11 @@ resource "aws_api_gateway_method_settings" "all" {
 }
 
 # ===== Custom Domain =====
+# Use the main certificate which includes api.domain_name as a SAN
 data "aws_acm_certificate" "api_cert" {
-  domain   = "api.${data.terraform_remote_state.infrastructure.outputs.domain_name}"
+  domain   = data.terraform_remote_state.infrastructure.outputs.domain_name
   statuses = ["ISSUED"]
+  most_recent = true
 }
 
 resource "aws_api_gateway_domain_name" "api_domain" {
