@@ -1,5 +1,5 @@
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
-import { HfInference } from '@huggingface/inference';
+import { InferenceClient } from '@huggingface/inference';
 
 const ssmClient = new SSMClient({ region: 'us-east-1' });
 
@@ -9,7 +9,7 @@ interface Message {
 }
 
 let cachedToken: string | null = null;
-let cachedClient: HfInference | null = null;
+let cachedClient: InferenceClient | null = null;
 
 /**
  * Get Hugging Face API token from AWS SSM Parameter Store
@@ -42,13 +42,13 @@ export async function getHuggingFaceToken(): Promise<string> {
 /**
  * Get Hugging Face client
  */
-async function getHfClient(): Promise<HfInference> {
+async function getHfClient(): Promise<InferenceClient> {
   if (cachedClient) {
     return cachedClient;
   }
 
   const token = await getHuggingFaceToken();
-  cachedClient = new HfInference(token);
+  cachedClient = new InferenceClient(token);
   return cachedClient;
 }
 
@@ -105,6 +105,6 @@ export async function callInference(
  * Get recommended model name
  */
 export function getDefaultModel(): string {
-  // Using microsoft/Phi-3.5-mini-instruct - efficient and reliable chat model
-  return 'microsoft/Phi-3.5-mini-instruct';
+  // Using meta-llama/Llama-3.1-8B-Instruct - confirmed working in HF docs
+  return 'meta-llama/Llama-3.1-8B-Instruct';
 }
