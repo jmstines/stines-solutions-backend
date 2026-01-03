@@ -71,13 +71,19 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       };
     }
 
-    // Handle different HTTP methods
-    if (event.httpMethod === 'POST' && event.path === '/chat') {
+    // Normalize path (remove stage from path if present)
+    const path = event.path || event.resource || '';
+    const normalizedPath = path.replace(/^\/[^/]+\//, '/'); // Remove stage prefix if present
+    
+    console.log('Path:', path, 'Normalized:', normalizedPath, 'Method:', event.httpMethod);
+
+    // Handle different HTTP methods and paths
+    if (event.httpMethod === 'POST' && (normalizedPath === '/chat' || path.endsWith('/chat'))) {
       return await handleSendMessage(event, user.userId, corsHeaders);
-    } else if (event.httpMethod === 'GET' && event.path === '/chat/conversations') {
+    } else if (event.httpMethod === 'GET' && (normalizedPath === '/chat/conversations' || path.endsWith('/chat/conversations'))) {
       return await handleGetConversations(user.userId, corsHeaders);
-    } else if (event.httpMethod === 'GET' && event.path.startsWith('/chat/conversations/')) {
-      const conversationId = event.path.split('/').pop();
+    } else if (event.httpMethod === 'GET' && (normalizedPath.startsWith('/chat/conversations/') || path.includes('/chat/conversations/'))) {
+      const conversationId = path.split('/').pop();
       if (!conversationId) {
         return {
           statusCode: 400,
@@ -86,8 +92,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         };
       }
       return await handleGetConversation(conversationId, user.userId, corsHeaders);
-    } else if (event.httpMethod === 'DELETE' && event.path.startsWith('/chat/conversations/')) {
-      const conversationId = event.path.split('/').pop();
+    } else if (event.httpMethod === 'DELETE' && (normalizedPath.startsWith('/chat/conversations/') || path.includes('/chat/conversations/'))) {
+      const conversationId = path.split('/').pop();
       if (!conversationId) {
         return {
           statusCode: 400,
