@@ -94,7 +94,7 @@ export async function callInference(
   // Format the conversation history
   const prompt = formatChatHistory(messages);
   
-  try {
+  try {  
     const response = await client.textGeneration({
       model,
       inputs: prompt,
