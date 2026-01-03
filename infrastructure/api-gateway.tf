@@ -323,6 +323,8 @@ resource "aws_api_gateway_method_settings" "all" {
     logging_level      = "INFO"
     data_trace_enabled = true
     metrics_enabled    = true
+    throttling_burst_limit = 100  # Max concurrent requests
+    throttling_rate_limit  = 50   # Requests per second
   }
 
   depends_on = [aws_api_gateway_account.main]
@@ -360,5 +362,26 @@ resource "aws_route53_record" "api" {
     name                   = aws_api_gateway_domain_name.api_domain.regional_domain_name
     zone_id                = aws_api_gateway_domain_name.api_domain.regional_zone_id
     evaluate_target_health = true
+  }
+}
+
+# ===== Usage Plan for Rate Limiting =====
+resource "aws_api_gateway_usage_plan" "backend_usage_plan" {
+  name        = "stines-solutions-backend-usage-plan"
+  description = "Usage plan with rate limiting for backend API"
+
+  api_stages {
+    api_id = aws_api_gateway_rest_api.backend_api.id
+    stage  = aws_api_gateway_stage.backend_stage.stage_name
+  }
+
+  quota_settings {
+    limit  = 10000  # 10k requests per month (well under free tier 1M)
+    period = "MONTH"
+  }
+
+  throttle_settings {
+    burst_limit = 100  # Max concurrent requests
+    rate_limit  = 50   # Requests per second
   }
 }
