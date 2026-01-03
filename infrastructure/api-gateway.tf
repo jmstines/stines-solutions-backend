@@ -6,6 +6,48 @@ resource "aws_api_gateway_rest_api" "backend_api" {
   description = "API Gateway for backend services (contact form, auth)"
 }
 
+# ===== IMPORTANT: When adding new Lambda functions or API resources =====
+# Update the depends_on and triggers lists below to ensure redeployment
+resource "aws_api_gateway_deployment" "backend_deployment" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+
+  depends_on = [
+    aws_api_gateway_integration.contact_lambda,
+    aws_api_gateway_integration.login_lambda,
+    aws_api_gateway_integration.verify_lambda,
+    aws_api_gateway_integration.logout_lambda,
+    aws_api_gateway_integration.chat_post,
+    aws_api_gateway_integration.chat_conversations_get,
+    aws_api_gateway_integration.chat_conversation_get,
+    aws_api_gateway_integration.chat_conversation_delete
+  ]
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  triggers = {
+    # Force redeployment on any change to Lambda functions, API resources, or code
+    redeployment = sha1(jsonencode([
+      aws_lambda_function.contact_lambda.id,
+      aws_lambda_function.login_lambda.id,
+      aws_lambda_function.verify_lambda.id,
+      aws_lambda_function.logout_lambda.id,
+      aws_lambda_function.chat_lambda.id,
+      aws_api_gateway_resource.chat_resource.id,
+      aws_api_gateway_resource.chat_conversations.id,
+      aws_api_gateway_resource.chat_conversation_id.id,
+      var.lambda_code_s3_key, # Auto-redeploy when Lambda code changes
+    ]))
+  }
+}
+
+resource "aws_api_gateway_stage" "backend_stage" {
+  deployment_id = aws_api_gateway_deployment.backend_deployment.id
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  stage_name    = "prod"
+}
+
 # ===== /contact Resource =====
 resource "aws_api_gateway_resource" "contact_resource" {
   rest_api_id = aws_api_gateway_rest_api.backend_api.id
@@ -250,36 +292,6 @@ resource "aws_lambda_permission" "logout_api_gateway" {
   function_name = aws_lambda_function.logout_lambda.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/*/*"
-}
-
-resource "aws_api_gateway_deployment" "backend_deployment" {
-  rest_api_id = aws_api_gateway_rest_api.backend_api.id
-
-  depends_on = [
-    aws_api_gateway_integration.contact_lambda,
-    aws_api_gateway_integration.login_lambda,
-    aws_api_gateway_integration.verify_lambda,
-    aws_api_gateway_integration.logout_lambda
-  ]
-
-  lifecycle {
-    create_before_destroy = true
-  }
-
-  triggers = {
-    redeployment = sha1(jsonencode([
-      aws_lambda_function.contact_lambda.id,
-      aws_lambda_function.login_lambda.id,
-      aws_lambda_function.verify_lambda.id,
-      aws_lambda_function.logout_lambda.id,
-    ]))
-  }
-}
-
-resource "aws_api_gateway_stage" "backend_stage" {
-  deployment_id = aws_api_gateway_deployment.backend_deployment.id
-  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
-  stage_name    = "prod"
 }
 
 # ===== CloudWatch Logs =====
