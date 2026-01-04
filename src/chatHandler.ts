@@ -26,6 +26,7 @@ interface ChatRequest {
   message: string;
   conversationId?: string;
   model?: string;
+  maxTokens?: number;
 }
 
 export const handler: APIGatewayProxyHandler = async (event) => {
@@ -170,7 +171,7 @@ async function handleSendMessage(event: any, userId: string, corsHeaders: any) {
 
     // Call Hugging Face API
     const aiResponse = await callInference(model, messages, {
-      maxTokens: 500,
+      maxTokens: body.maxTokens || 200,
       temperature: 0.7,
       topP: 0.9
     });
