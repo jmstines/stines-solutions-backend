@@ -188,6 +188,7 @@ resource "aws_lambda_function" "change_password_lambda" {
   role          = aws_iam_role.lambda_role.arn
   handler       = "changePasswordHandler.handler"
   runtime       = "nodejs18.x"
+  timeout       = 10  # Timeout for password hashing
 
   # All Lambda functions share the same deployment package
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
