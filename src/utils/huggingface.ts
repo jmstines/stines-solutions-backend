@@ -78,6 +78,6 @@ export async function callInference(
  * Get recommended model name
  */
 export function getDefaultModel(): string {
-  // Using Llama 3.1 70B for better code understanding
-  return 'llama-3.1-70b-versatile';
+  // Using Llama 3.3 70B - updated model replacing decommissioned 3.1
+  return 'llama-3.3-70b-versatile';
 }
