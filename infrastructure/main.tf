@@ -90,15 +90,6 @@ resource "aws_iam_role_policy" "lambda_dynamodb_policy" {
           aws_dynamodb_table.chat_history.arn,
           "${aws_dynamodb_table.chat_history.arn}/index/*"
         ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ssm:GetParameter"
-        ]
-        Resource = [
-          "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/stines-solutions/huggingface/*"
-        ]
       }
     ]
   })
