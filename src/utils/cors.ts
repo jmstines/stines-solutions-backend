@@ -1,6 +1,7 @@
 // CORS helper for dynamic origin handling
 const ALLOWED_ORIGINS = [
   'https://www.stinessolutions.com',
+  'https://stinessolutions.com',
   'http://localhost:5173',
   'http://localhost:3000'
 ];
