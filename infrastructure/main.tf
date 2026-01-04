@@ -220,6 +220,7 @@ resource "aws_lambda_function" "chat_lambda" {
       USERS_TABLE        = aws_dynamodb_table.users.name
       SESSIONS_TABLE     = aws_dynamodb_table.sessions.name
       CHAT_HISTORY_TABLE = aws_dynamodb_table.chat_history.name
+      GROQ_API_KEY       = var.groq_api_key
     }
   }
 }

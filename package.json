@@ -18,7 +18,8 @@
     "@aws-sdk/util-dynamodb": "^3.962.0",
     "@huggingface/inference": "^4.13.5",
     "aws-sdk": "^2.1484.0",
-    "bcryptjs": "^2.4.3"
+    "bcryptjs": "^2.4.3",
+    "groq-sdk": "^0.37.0"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.119",

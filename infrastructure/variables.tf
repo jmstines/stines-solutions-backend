@@ -19,3 +19,9 @@ variable "source_email" {
 variable "destination_email" {
   description = "Destination email for contact form"
 }
+
+variable "groq_api_key" {
+  description = "Groq API key for chat functionality"
+  type        = string
+  sensitive   = true
+}
