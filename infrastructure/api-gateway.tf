@@ -34,10 +34,12 @@ resource "aws_api_gateway_deployment" "backend_deployment" {
       aws_lambda_function.login_lambda.id,
       aws_lambda_function.verify_lambda.id,
       aws_lambda_function.logout_lambda.id,
+      aws_lambda_function.change_password_lambda.id,
       aws_lambda_function.chat_lambda.id,
       aws_api_gateway_resource.chat_resource.id,
       aws_api_gateway_resource.chat_conversations.id,
       aws_api_gateway_resource.chat_conversation_id.id,
+      aws_api_gateway_resource.change_password_resource.id,
       var.lambda_code_s3_key, # Auto-redeploy when Lambda code changes
     ]))
   }
