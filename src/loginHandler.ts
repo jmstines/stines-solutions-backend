@@ -52,7 +52,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       statusCode: 200,
       headers: {
         ...corsHeaders,
-        'Set-Cookie': `sessionId=${session.sessionId}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${24 * 60 * 60}`
+        'Set-Cookie': `sessionId=${session.sessionId}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=${24 * 60 * 60}`
       },
       body: JSON.stringify({
         user: {
