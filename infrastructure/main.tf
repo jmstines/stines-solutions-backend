@@ -194,6 +194,26 @@ resource "aws_lambda_function" "change_password_lambda" {
   }
 }
 
+resource "aws_lambda_function" "create_user_lambda" {
+  function_name = "auth-create-user-lambda"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "createUserHandler.handler"
+  runtime       = "nodejs18.x"
+  timeout       = 10  # Timeout for password hashing
+
+  # All Lambda functions share the same deployment package
+  s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
+  s3_key           = var.lambda_code_s3_key
+  source_code_hash = data.aws_s3_object.lambda_zip.etag
+
+  environment {
+    variables = {
+      USERS_TABLE    = aws_dynamodb_table.users.name
+      SESSIONS_TABLE = aws_dynamodb_table.sessions.name
+    }
+  }
+}
+
 resource "aws_lambda_function" "chat_lambda" {
   function_name = "chat-lambda"
   role          = aws_iam_role.lambda_role.arn

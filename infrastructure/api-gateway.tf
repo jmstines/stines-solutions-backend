@@ -17,6 +17,7 @@ resource "aws_api_gateway_deployment" "backend_deployment" {
     aws_api_gateway_integration.verify_lambda,
     aws_api_gateway_integration.logout_lambda,
     aws_api_gateway_integration.change_password_lambda,
+    aws_api_gateway_integration.create_user_lambda,
     aws_api_gateway_integration.chat_post,
     aws_api_gateway_integration.chat_conversations_get,
     aws_api_gateway_integration.chat_conversation_get,
@@ -35,11 +36,13 @@ resource "aws_api_gateway_deployment" "backend_deployment" {
       aws_lambda_function.verify_lambda.id,
       aws_lambda_function.logout_lambda.id,
       aws_lambda_function.change_password_lambda.id,
+      aws_lambda_function.create_user_lambda.id,
       aws_lambda_function.chat_lambda.id,
       aws_api_gateway_resource.chat_resource.id,
       aws_api_gateway_resource.chat_conversations.id,
       aws_api_gateway_resource.chat_conversation_id.id,
       aws_api_gateway_resource.change_password_resource.id,
+      aws_api_gateway_resource.create_user_resource.id,
       var.lambda_code_s3_key, # Auto-redeploy when Lambda code changes
     ]))
   }
@@ -354,6 +357,67 @@ resource "aws_lambda_permission" "change_password_api_gateway" {
   statement_id  = "AllowAPIGatewayInvokeChangePassword"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.change_password_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/*/*"
+}
+
+# ===== /auth/create-user Resource =====
+resource "aws_api_gateway_resource" "create_user_resource" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  parent_id   = aws_api_gateway_resource.auth_resource.id
+  path_part   = "create-user"
+}
+
+resource "aws_api_gateway_method" "create_user_options" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.create_user_resource.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "create_user_post" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.create_user_resource.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "create_user_options" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.create_user_resource.id
+  http_method             = aws_api_gateway_method.create_user_options.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.create_user_lambda.invoke_arn
+}
+
+resource "aws_api_gateway_method_response" "create_user_options" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  resource_id = aws_api_gateway_resource.create_user_resource.id
+  http_method = aws_api_gateway_method.create_user_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"      = true
+    "method.response.header.Access-Control-Allow-Methods"     = true
+    "method.response.header.Access-Control-Allow-Headers"     = true
+    "method.response.header.Access-Control-Allow-Credentials" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "create_user_lambda" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.create_user_resource.id
+  http_method             = aws_api_gateway_method.create_user_post.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.create_user_lambda.invoke_arn
+}
+
+resource "aws_lambda_permission" "create_user_api_gateway" {
+  statement_id  = "AllowAPIGatewayInvokeCreateUser"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.create_user_lambda.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/*/*"
 }
