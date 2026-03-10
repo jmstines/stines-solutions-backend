@@ -18,6 +18,10 @@ resource "aws_api_gateway_deployment" "backend_deployment" {
     aws_api_gateway_integration.logout_lambda,
     aws_api_gateway_integration.change_password_lambda,
     aws_api_gateway_integration.create_user_lambda,
+    aws_api_gateway_integration.list_users_lambda,
+    aws_api_gateway_integration.delete_user_lambda,
+    aws_api_gateway_integration.update_user_lambda,
+    aws_api_gateway_integration.reset_user_password_lambda,
     aws_api_gateway_integration.chat_post,
     aws_api_gateway_integration.chat_conversations_get,
     aws_api_gateway_integration.chat_conversation_get,
@@ -37,12 +41,19 @@ resource "aws_api_gateway_deployment" "backend_deployment" {
       aws_lambda_function.logout_lambda.id,
       aws_lambda_function.change_password_lambda.id,
       aws_lambda_function.create_user_lambda.id,
+      aws_lambda_function.list_users_lambda.id,
+      aws_lambda_function.delete_user_lambda.id,
+      aws_lambda_function.update_user_lambda.id,
+      aws_lambda_function.reset_user_password_lambda.id,
       aws_lambda_function.chat_lambda.id,
       aws_api_gateway_resource.chat_resource.id,
       aws_api_gateway_resource.chat_conversations.id,
       aws_api_gateway_resource.chat_conversation_id.id,
       aws_api_gateway_resource.change_password_resource.id,
       aws_api_gateway_resource.create_user_resource.id,
+      aws_api_gateway_resource.users_resource.id,
+      aws_api_gateway_resource.user_id_resource.id,
+      aws_api_gateway_resource.reset_password_resource.id,
       var.lambda_code_s3_key, # Auto-redeploy when Lambda code changes
     ]))
   }
@@ -418,6 +429,213 @@ resource "aws_lambda_permission" "create_user_api_gateway" {
   statement_id  = "AllowAPIGatewayInvokeCreateUser"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.create_user_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/*/*"
+}
+
+# ===== /auth/users Resource =====
+resource "aws_api_gateway_resource" "users_resource" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  parent_id   = aws_api_gateway_resource.auth_resource.id
+  path_part   = "users"
+}
+
+resource "aws_api_gateway_method" "list_users_options" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.users_resource.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "list_users_get" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.users_resource.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "list_users_options" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.users_resource.id
+  http_method             = aws_api_gateway_method.list_users_options.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.list_users_lambda.invoke_arn
+}
+
+resource "aws_api_gateway_method_response" "list_users_options" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  resource_id = aws_api_gateway_resource.users_resource.id
+  http_method = aws_api_gateway_method.list_users_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"      = true
+    "method.response.header.Access-Control-Allow-Methods"     = true
+    "method.response.header.Access-Control-Allow-Headers"     = true
+    "method.response.header.Access-Control-Allow-Credentials" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "list_users_lambda" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.users_resource.id
+  http_method             = aws_api_gateway_method.list_users_get.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.list_users_lambda.invoke_arn
+}
+
+resource "aws_lambda_permission" "list_users_api_gateway" {
+  statement_id  = "AllowAPIGatewayInvokeListUsers"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.list_users_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/*/*"
+}
+
+# ===== /auth/users/{userId} Resource =====
+resource "aws_api_gateway_resource" "user_id_resource" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  parent_id   = aws_api_gateway_resource.users_resource.id
+  path_part   = "{userId}"
+}
+
+resource "aws_api_gateway_method" "user_id_options" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.user_id_resource.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "delete_user" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.user_id_resource.id
+  http_method   = "DELETE"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "update_user" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.user_id_resource.id
+  http_method   = "PUT"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "user_id_options" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.user_id_resource.id
+  http_method             = aws_api_gateway_method.user_id_options.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.delete_user_lambda.invoke_arn
+}
+
+resource "aws_api_gateway_method_response" "user_id_options" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  resource_id = aws_api_gateway_resource.user_id_resource.id
+  http_method = aws_api_gateway_method.user_id_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"      = true
+    "method.response.header.Access-Control-Allow-Methods"     = true
+    "method.response.header.Access-Control-Allow-Headers"     = true
+    "method.response.header.Access-Control-Allow-Credentials" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "delete_user_lambda" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.user_id_resource.id
+  http_method             = aws_api_gateway_method.delete_user.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.delete_user_lambda.invoke_arn
+}
+
+resource "aws_api_gateway_integration" "update_user_lambda" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.user_id_resource.id
+  http_method             = aws_api_gateway_method.update_user.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.update_user_lambda.invoke_arn
+}
+
+resource "aws_lambda_permission" "delete_user_api_gateway" {
+  statement_id  = "AllowAPIGatewayInvokeDeleteUser"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.delete_user_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "update_user_api_gateway" {
+  statement_id  = "AllowAPIGatewayInvokeUpdateUser"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.update_user_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/*/*"
+}
+
+# ===== /auth/users/{userId}/reset-password Resource =====
+resource "aws_api_gateway_resource" "reset_password_resource" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  parent_id   = aws_api_gateway_resource.user_id_resource.id
+  path_part   = "reset-password"
+}
+
+resource "aws_api_gateway_method" "reset_password_options" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.reset_password_resource.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method" "reset_password_post" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.reset_password_resource.id
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "reset_password_options" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.reset_password_resource.id
+  http_method             = aws_api_gateway_method.reset_password_options.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.reset_user_password_lambda.invoke_arn
+}
+
+resource "aws_api_gateway_method_response" "reset_password_options" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  resource_id = aws_api_gateway_resource.reset_password_resource.id
+  http_method = aws_api_gateway_method.reset_password_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"      = true
+    "method.response.header.Access-Control-Allow-Methods"     = true
+    "method.response.header.Access-Control-Allow-Headers"     = true
+    "method.response.header.Access-Control-Allow-Credentials" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "reset_user_password_lambda" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.reset_password_resource.id
+  http_method             = aws_api_gateway_method.reset_password_post.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.reset_user_password_lambda.invoke_arn
+}
+
+resource "aws_lambda_permission" "reset_user_password_api_gateway" {
+  statement_id  = "AllowAPIGatewayInvokeResetUserPassword"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.reset_user_password_lambda.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/*/*"
 }

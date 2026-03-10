@@ -214,6 +214,80 @@ resource "aws_lambda_function" "create_user_lambda" {
   }
 }
 
+resource "aws_lambda_function" "list_users_lambda" {
+  function_name = "auth-list-users-lambda"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "listUsersHandler.handler"
+  runtime       = "nodejs18.x"
+
+  s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
+  s3_key           = var.lambda_code_s3_key
+  source_code_hash = data.aws_s3_object.lambda_zip.etag
+
+  environment {
+    variables = {
+      USERS_TABLE    = aws_dynamodb_table.users.name
+      SESSIONS_TABLE = aws_dynamodb_table.sessions.name
+    }
+  }
+}
+
+resource "aws_lambda_function" "delete_user_lambda" {
+  function_name = "auth-delete-user-lambda"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "deleteUserHandler.handler"
+  runtime       = "nodejs18.x"
+
+  s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
+  s3_key           = var.lambda_code_s3_key
+  source_code_hash = data.aws_s3_object.lambda_zip.etag
+
+  environment {
+    variables = {
+      USERS_TABLE    = aws_dynamodb_table.users.name
+      SESSIONS_TABLE = aws_dynamodb_table.sessions.name
+    }
+  }
+}
+
+resource "aws_lambda_function" "update_user_lambda" {
+  function_name = "auth-update-user-lambda"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "updateUserHandler.handler"
+  runtime       = "nodejs18.x"
+  timeout       = 10
+
+  s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
+  s3_key           = var.lambda_code_s3_key
+  source_code_hash = data.aws_s3_object.lambda_zip.etag
+
+  environment {
+    variables = {
+      USERS_TABLE    = aws_dynamodb_table.users.name
+      SESSIONS_TABLE = aws_dynamodb_table.sessions.name
+    }
+  }
+}
+
+resource "aws_lambda_function" "reset_user_password_lambda" {
+  function_name = "auth-reset-user-password-lambda"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "resetUserPasswordHandler.handler"
+  runtime       = "nodejs18.x"
+  timeout       = 10  # Timeout for password hashing
+
+  s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
+  s3_key           = var.lambda_code_s3_key
+  source_code_hash = data.aws_s3_object.lambda_zip.etag
+
+  environment {
+    variables = {
+      USERS_TABLE    = aws_dynamodb_table.users.name
+      SESSIONS_TABLE = aws_dynamodb_table.sessions.name
+    }
+  }
+}
+
 resource "aws_lambda_function" "chat_lambda" {
   function_name = "chat-lambda"
   role          = aws_iam_role.lambda_role.arn
