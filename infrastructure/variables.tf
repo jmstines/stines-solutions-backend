@@ -25,3 +25,15 @@ variable "groq_api_key" {
   type        = string
   sensitive   = true
 }
+
+variable "alpha_vantage_api_key" {
+  description = "Alpha Vantage API key for stock market data"
+  type        = string
+  sensitive   = true
+}
+
+variable "trade_watchlist" {
+  description = "Comma-separated list of ticker symbols to scan"
+  type        = string
+  default     = "AAPL,MSFT,NVDA,AMZN,TSLA,AMD,NFLX,META,GOOGL,GPRO"
+}

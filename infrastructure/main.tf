@@ -88,7 +88,9 @@ resource "aws_iam_role_policy" "lambda_dynamodb_policy" {
           "${aws_dynamodb_table.users.arn}/index/*",
           aws_dynamodb_table.sessions.arn,
           aws_dynamodb_table.chat_history.arn,
-          "${aws_dynamodb_table.chat_history.arn}/index/*"
+          "${aws_dynamodb_table.chat_history.arn}/index/*",
+          aws_dynamodb_table.trade_signals.arn,
+          "${aws_dynamodb_table.trade_signals.arn}/index/*"
         ]
       }
     ]
@@ -308,4 +310,70 @@ resource "aws_lambda_function" "chat_lambda" {
       GROQ_API_KEY       = var.groq_api_key
     }
   }
+}
+
+# ===== Trade Scanner Lambda (EventBridge scheduled) =====
+resource "aws_lambda_function" "trade_scanner_lambda" {
+  function_name = "trade-scanner-lambda"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "tradeScannerHandler.handler"
+  runtime       = "nodejs18.x"
+  # 10 tickers × 12s delay + processing time; set ceiling well above worst case
+  timeout       = 300
+
+  s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
+  s3_key           = var.lambda_code_s3_key
+  source_code_hash = data.aws_s3_object.lambda_zip.etag
+
+  environment {
+    variables = {
+      TRADE_SIGNALS_TABLE   = aws_dynamodb_table.trade_signals.name
+      ALPHA_VANTAGE_API_KEY = var.alpha_vantage_api_key
+      WATCHLIST             = var.trade_watchlist
+    }
+  }
+}
+
+# ===== Trade Signals API Lambda (API Gateway GET /trade-signals) =====
+resource "aws_lambda_function" "trade_signals_lambda" {
+  function_name = "trade-signals-lambda"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "tradeSignalsHandler.handler"
+  runtime       = "nodejs18.x"
+  timeout       = 10
+
+  s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
+  s3_key           = var.lambda_code_s3_key
+  source_code_hash = data.aws_s3_object.lambda_zip.etag
+
+  environment {
+    variables = {
+      TRADE_SIGNALS_TABLE = aws_dynamodb_table.trade_signals.name
+      SESSIONS_TABLE      = aws_dynamodb_table.sessions.name
+      USERS_TABLE         = aws_dynamodb_table.users.name
+    }
+  }
+}
+
+# ===== EventBridge: trigger trade scanner weekdays at 5 PM ET (21:05 UTC) =====
+# Note: 21:05 UTC = 5:05 PM ET (EST); accounts for slight post-close data availability
+# DST: during EDT (Mar–Nov) this runs at 5:05 PM EDT. Adjust cron if needed.
+resource "aws_cloudwatch_event_rule" "trade_scanner_schedule" {
+  name                = "trade-scanner-weekday-schedule"
+  description         = "Trigger trade scanner Mon–Fri at 5:05 PM ET after market close"
+  schedule_expression = "cron(5 21 ? * MON-FRI *)"
+}
+
+resource "aws_cloudwatch_event_target" "trade_scanner_target" {
+  rule      = aws_cloudwatch_event_rule.trade_scanner_schedule.name
+  target_id = "TradeScannerLambda"
+  arn       = aws_lambda_function.trade_scanner_lambda.arn
+}
+
+resource "aws_lambda_permission" "eventbridge_trade_scanner" {
+  statement_id  = "AllowEventBridgeInvokeTradeScannerLambda"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.trade_scanner_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.trade_scanner_schedule.arn
 }

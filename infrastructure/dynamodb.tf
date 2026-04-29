@@ -107,3 +107,36 @@ output "sessions_table_name" {
 output "chat_history_table_name" {
   value = aws_dynamodb_table.chat_history.name
 }
+
+# ===== Trade Signals Table =====
+# PK: marketDate (YYYY-MM-DD), SK: symbol (ticker or "_META_" for scan metadata)
+resource "aws_dynamodb_table" "trade_signals" {
+  name         = "stines-solutions-trade-signals"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "marketDate"
+  range_key    = "symbol"
+
+  attribute {
+    name = "marketDate"
+    type = "S"
+  }
+
+  attribute {
+    name = "symbol"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+
+  tags = {
+    Project     = "stines-solutions"
+    Environment = "production"
+  }
+}
+
+output "trade_signals_table_name" {
+  value = aws_dynamodb_table.trade_signals.name
+}

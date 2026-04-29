@@ -25,7 +25,9 @@ resource "aws_api_gateway_deployment" "backend_deployment" {
     aws_api_gateway_integration.chat_post,
     aws_api_gateway_integration.chat_conversations_get,
     aws_api_gateway_integration.chat_conversation_get,
-    aws_api_gateway_integration.chat_conversation_delete
+    aws_api_gateway_integration.chat_conversation_delete,
+    aws_api_gateway_integration.trade_signals_get,
+    aws_api_gateway_integration.trade_signals_options
   ]
 
   lifecycle {
@@ -54,6 +56,8 @@ resource "aws_api_gateway_deployment" "backend_deployment" {
       aws_api_gateway_resource.users_resource.id,
       aws_api_gateway_resource.user_id_resource.id,
       aws_api_gateway_resource.reset_password_resource.id,
+      aws_api_gateway_resource.trade_signals_resource.id,
+      aws_lambda_function.trade_signals_lambda.id,
       var.lambda_code_s3_key, # Auto-redeploy when Lambda code changes
     ]))
   }
@@ -926,4 +930,67 @@ resource "aws_api_gateway_method_response" "chat_conversation_options" {
     "method.response.header.Access-Control-Allow-Methods" = true
     "method.response.header.Access-Control-Allow-Headers" = true
   }
+}
+
+# ===== /trade-signals Resource =====
+resource "aws_api_gateway_resource" "trade_signals_resource" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  parent_id   = aws_api_gateway_rest_api.backend_api.root_resource_id
+  path_part   = "trade-signals"
+}
+
+# GET /trade-signals
+resource "aws_api_gateway_method" "trade_signals_get" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.trade_signals_resource.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "trade_signals_get" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.trade_signals_resource.id
+  http_method             = aws_api_gateway_method.trade_signals_get.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.trade_signals_lambda.invoke_arn
+}
+
+# OPTIONS /trade-signals (CORS preflight)
+resource "aws_api_gateway_method" "trade_signals_options" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.trade_signals_resource.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "trade_signals_options" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.trade_signals_resource.id
+  http_method             = aws_api_gateway_method.trade_signals_options.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.trade_signals_lambda.invoke_arn
+}
+
+resource "aws_api_gateway_method_response" "trade_signals_options" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  resource_id = aws_api_gateway_resource.trade_signals_resource.id
+  http_method = aws_api_gateway_method.trade_signals_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"      = true
+    "method.response.header.Access-Control-Allow-Methods"     = true
+    "method.response.header.Access-Control-Allow-Headers"     = true
+    "method.response.header.Access-Control-Allow-Credentials" = true
+  }
+}
+
+resource "aws_lambda_permission" "api_gateway_trade_signals" {
+  statement_id  = "AllowAPIGatewayInvokeTradeSignals"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.trade_signals_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/*/*"
 }
