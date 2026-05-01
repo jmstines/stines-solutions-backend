@@ -59,8 +59,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
           userId: user.userId,
           email: user.email,
           role: user.role
-        },
-        sessionId: session.sessionId
+        }
       })
     };
 
