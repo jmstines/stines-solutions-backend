@@ -1,8 +1,8 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
-import AWS from 'aws-sdk';
+import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import { getCorsHeaders, assertAllowedOrigin } from './utils/cors';
 
-const ses = new AWS.SES();
+const ses = new SESClient({ region: process.env.AWS_REGION ?? 'us-east-1' });
 
 // Validation constants
 const MAX_NAME_LENGTH = 100;
@@ -59,7 +59,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     const sanitizedEmail = email.trim().substring(0, MAX_EMAIL_LENGTH);
     const sanitizedMessage = message.trim().substring(0, MAX_MESSAGE_LENGTH);
 
-    const params: AWS.SES.SendEmailRequest = {
+    const params = {
       Source: process.env.SOURCE_EMAIL!,
       Destination: {
         ToAddresses: [process.env.DESTINATION_EMAIL!],
@@ -74,7 +74,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       },
     };
 
-    await ses.sendEmail(params).promise();
+    await ses.send(new SendEmailCommand(params));
 
     return {
       statusCode: 200,

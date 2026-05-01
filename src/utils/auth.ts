@@ -1,8 +1,18 @@
-import AWS from 'aws-sdk';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import {
+  DynamoDBDocumentClient,
+  PutCommand,
+  GetCommand,
+  DeleteCommand,
+  QueryCommand,
+  BatchWriteCommand,
+} from '@aws-sdk/lib-dynamodb';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
-const dynamodb = new AWS.DynamoDB.DocumentClient();
+const client = new DynamoDBClient({ region: process.env.AWS_REGION ?? 'us-east-1' });
+const dynamodb = DynamoDBDocumentClient.from(client);
+
 const USERS_TABLE = process.env.USERS_TABLE!;
 const SESSIONS_TABLE = process.env.SESSIONS_TABLE!;
 
@@ -49,19 +59,19 @@ export async function createSession(userId: string): Promise<Session> {
     expiresAt
   };
   
-  await dynamodb.put({
+  await dynamodb.send(new PutCommand({
     TableName: SESSIONS_TABLE,
     Item: session
-  }).promise();
+  }));
   
   return session;
 }
 
 export async function getSession(sessionId: string): Promise<Session | null> {
-  const result = await dynamodb.get({
+  const result = await dynamodb.send(new GetCommand({
     TableName: SESSIONS_TABLE,
     Key: { sessionId }
-  }).promise();
+  }));
   
   if (!result.Item) return null;
   
@@ -77,59 +87,57 @@ export async function getSession(sessionId: string): Promise<Session | null> {
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
-  await dynamodb.delete({
+  await dynamodb.send(new DeleteCommand({
     TableName: SESSIONS_TABLE,
     Key: { sessionId }
-  }).promise();
+  }));
 }
 
 export async function deleteUserSessions(userId: string): Promise<void> {
-  let lastEvaluatedKey: AWS.DynamoDB.DocumentClient.Key | undefined;
+  let lastEvaluatedKey: Record<string, unknown> | undefined;
 
   do {
-    const result: AWS.DynamoDB.DocumentClient.QueryOutput = await dynamodb.query({
+    const result = await dynamodb.send(new QueryCommand({
       TableName: SESSIONS_TABLE,
       IndexName: 'UserIdIndex',
       KeyConditionExpression: 'userId = :userId',
       ExpressionAttributeValues: { ':userId': userId },
       ProjectionExpression: 'sessionId',
       ExclusiveStartKey: lastEvaluatedKey,
-    }).promise();
+    }));
 
     const sessions = result.Items || [];
     lastEvaluatedKey = result.LastEvaluatedKey;
 
     for (let i = 0; i < sessions.length; i += 25) {
       const batch = sessions.slice(i, i + 25);
-      await dynamodb.batchWrite({
+      await dynamodb.send(new BatchWriteCommand({
         RequestItems: {
           [SESSIONS_TABLE]: batch.map(s => ({
             DeleteRequest: { Key: { sessionId: s.sessionId } }
           }))
         }
-      }).promise();
+      }));
     }
   } while (lastEvaluatedKey);
 }
 
 export async function getUserByEmail(email: string): Promise<User | null> {
-  const result = await dynamodb.query({
+  const result = await dynamodb.send(new QueryCommand({
     TableName: USERS_TABLE,
     IndexName: 'EmailIndex',
     KeyConditionExpression: 'email = :email',
-    ExpressionAttributeValues: {
-      ':email': email
-    }
-  }).promise();
+    ExpressionAttributeValues: { ':email': email }
+  }));
   
   return result.Items && result.Items.length > 0 ? result.Items[0] as User : null;
 }
 
 export async function getUserById(userId: string): Promise<User | null> {
-  const result = await dynamodb.get({
+  const result = await dynamodb.send(new GetCommand({
     TableName: USERS_TABLE,
     Key: { userId }
-  }).promise();
+  }));
   
   return result.Item ? result.Item as User : null;
 }
