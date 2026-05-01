@@ -58,6 +58,7 @@ resource "aws_api_gateway_deployment" "backend_deployment" {
       aws_api_gateway_resource.reset_password_resource.id,
       aws_api_gateway_resource.trade_signals_resource.id,
       aws_lambda_function.trade_signals_lambda.id,
+      aws_api_gateway_authorizer.session_authorizer.id,
       var.lambda_code_s3_key, # Auto-redeploy when Lambda code changes
     ]))
   }
@@ -67,6 +68,26 @@ resource "aws_api_gateway_stage" "backend_stage" {
   deployment_id = aws_api_gateway_deployment.backend_deployment.id
   rest_api_id   = aws_api_gateway_rest_api.backend_api.id
   stage_name    = "prod"
+}
+
+# ===== Lambda Authorizer =====
+# REQUEST-type authorizer reads the Cookie header to validate the session.
+# TTL is 0 because sessions can be revoked at any time.
+resource "aws_lambda_permission" "authorizer_api_gateway" {
+  statement_id  = "AllowAPIGatewayInvokeAuthorizer"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.authorizer_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/authorizers/*"
+}
+
+resource "aws_api_gateway_authorizer" "session_authorizer" {
+  rest_api_id                      = aws_api_gateway_rest_api.backend_api.id
+  name                             = "session-authorizer"
+  type                             = "REQUEST"
+  authorizer_uri                   = aws_lambda_function.authorizer_lambda.invoke_arn
+  identity_source                  = "method.request.header.Cookie"
+  authorizer_result_ttl_in_seconds = 0
 }
 
 # ===== /contact Resource =====
@@ -333,7 +354,8 @@ resource "aws_api_gateway_method" "change_password_post" {
   rest_api_id   = aws_api_gateway_rest_api.backend_api.id
   resource_id   = aws_api_gateway_resource.change_password_resource.id
   http_method   = "POST"
-  authorization = "NONE"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.session_authorizer.id
 }
 
 resource "aws_api_gateway_integration" "change_password_options" {
@@ -394,7 +416,8 @@ resource "aws_api_gateway_method" "create_user_post" {
   rest_api_id   = aws_api_gateway_rest_api.backend_api.id
   resource_id   = aws_api_gateway_resource.create_user_resource.id
   http_method   = "POST"
-  authorization = "NONE"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.session_authorizer.id
 }
 
 resource "aws_api_gateway_integration" "create_user_options" {
@@ -455,7 +478,8 @@ resource "aws_api_gateway_method" "list_users_get" {
   rest_api_id   = aws_api_gateway_rest_api.backend_api.id
   resource_id   = aws_api_gateway_resource.users_resource.id
   http_method   = "GET"
-  authorization = "NONE"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.session_authorizer.id
 }
 
 resource "aws_api_gateway_integration" "list_users_options" {
@@ -516,14 +540,16 @@ resource "aws_api_gateway_method" "delete_user" {
   rest_api_id   = aws_api_gateway_rest_api.backend_api.id
   resource_id   = aws_api_gateway_resource.user_id_resource.id
   http_method   = "DELETE"
-  authorization = "NONE"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.session_authorizer.id
 }
 
 resource "aws_api_gateway_method" "update_user" {
   rest_api_id   = aws_api_gateway_rest_api.backend_api.id
   resource_id   = aws_api_gateway_resource.user_id_resource.id
   http_method   = "PUT"
-  authorization = "NONE"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.session_authorizer.id
 }
 
 resource "aws_api_gateway_integration" "user_id_options" {
@@ -601,7 +627,8 @@ resource "aws_api_gateway_method" "reset_password_post" {
   rest_api_id   = aws_api_gateway_rest_api.backend_api.id
   resource_id   = aws_api_gateway_resource.reset_password_resource.id
   http_method   = "POST"
-  authorization = "NONE"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.session_authorizer.id
 }
 
 resource "aws_api_gateway_integration" "reset_password_options" {
@@ -760,7 +787,8 @@ resource "aws_api_gateway_method" "chat_post" {
   rest_api_id   = aws_api_gateway_rest_api.backend_api.id
   resource_id   = aws_api_gateway_resource.chat_resource.id
   http_method   = "POST"
-  authorization = "NONE"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.session_authorizer.id
 }
 
 resource "aws_api_gateway_integration" "chat_post" {
@@ -821,7 +849,8 @@ resource "aws_api_gateway_method" "chat_conversations_get" {
   rest_api_id   = aws_api_gateway_rest_api.backend_api.id
   resource_id   = aws_api_gateway_resource.chat_conversations.id
   http_method   = "GET"
-  authorization = "NONE"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.session_authorizer.id
 }
 
 resource "aws_api_gateway_integration" "chat_conversations_get" {
@@ -874,7 +903,8 @@ resource "aws_api_gateway_method" "chat_conversation_get" {
   rest_api_id   = aws_api_gateway_rest_api.backend_api.id
   resource_id   = aws_api_gateway_resource.chat_conversation_id.id
   http_method   = "GET"
-  authorization = "NONE"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.session_authorizer.id
 }
 
 resource "aws_api_gateway_integration" "chat_conversation_get" {
@@ -890,7 +920,8 @@ resource "aws_api_gateway_method" "chat_conversation_delete" {
   rest_api_id   = aws_api_gateway_rest_api.backend_api.id
   resource_id   = aws_api_gateway_resource.chat_conversation_id.id
   http_method   = "DELETE"
-  authorization = "NONE"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.session_authorizer.id
 }
 
 resource "aws_api_gateway_integration" "chat_conversation_delete" {

@@ -384,3 +384,23 @@ resource "aws_lambda_permission" "eventbridge_trade_scanner" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.trade_scanner_schedule.arn
 }
+
+# ===== API Gateway Authorizer Lambda =====
+resource "aws_lambda_function" "authorizer_lambda" {
+  function_name = "authorizer-lambda"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "authorizerHandler.handler"
+  runtime       = "nodejs20.x"
+  timeout       = 10
+
+  s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
+  s3_key           = var.lambda_code_s3_key
+  source_code_hash = data.aws_s3_object.lambda_zip.etag
+
+  environment {
+    variables = {
+      USERS_TABLE    = aws_dynamodb_table.users.name
+      SESSIONS_TABLE = aws_dynamodb_table.sessions.name
+    }
+  }
+}
