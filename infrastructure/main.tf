@@ -413,6 +413,99 @@ resource "aws_iam_role_policy" "reset_user_password_lambda_policy" {
   })
 }
 
+# ===== Per-Function IAM Roles (Batch 4) =====
+
+# ----- Chat Lambda Role -----
+resource "aws_iam_role" "chat_lambda_role" {
+  name               = "chat-lambda-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "chat_lambda_basic" {
+  role       = aws_iam_role.chat_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "chat_lambda_policy" {
+  name = "chat-lambda-policy"
+  role = aws_iam_role.chat_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem"]
+        Resource = [
+          aws_dynamodb_table.sessions.arn,
+          aws_dynamodb_table.users.arn,
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = ["dynamodb:PutItem", "dynamodb:Query", "dynamodb:DeleteItem"]
+        Resource = [
+          aws_dynamodb_table.chat_history.arn,
+          "${aws_dynamodb_table.chat_history.arn}/index/*",
+        ]
+      }
+    ]
+  })
+}
+
+# ----- Contact (Send Email) Lambda Role -----
+resource "aws_iam_role" "contact_lambda_role" {
+  name               = "contact-lambda-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "contact_lambda_basic" {
+  role       = aws_iam_role.contact_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "contact_lambda_policy" {
+  name = "contact-lambda-policy"
+  role = aws_iam_role.contact_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = ["ses:SendEmail", "ses:SendRawEmail"]
+      Resource = [
+        "arn:aws:ses:${var.aws_region}:${data.aws_caller_identity.current.account_id}:identity/${var.source_email}",
+        "arn:aws:ses:${var.aws_region}:${data.aws_caller_identity.current.account_id}:identity/${var.destination_email}",
+      ]
+    }]
+  })
+}
+
+# ----- Trade Scanner Lambda Role -----
+resource "aws_iam_role" "trade_scanner_lambda_role" {
+  name               = "trade-scanner-lambda-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "trade_scanner_lambda_basic" {
+  role       = aws_iam_role.trade_scanner_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "trade_scanner_lambda_policy" {
+  name = "trade-scanner-lambda-policy"
+  role = aws_iam_role.trade_scanner_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:PutItem"]
+      Resource = [aws_dynamodb_table.trade_signals.arn]
+    }]
+  })
+}
+
 resource "aws_iam_policy" "lambda_ses" {
   name = "lambda-ses-policy"
   
@@ -470,7 +563,7 @@ resource "aws_iam_role_policy" "lambda_dynamodb_policy" {
 
 resource "aws_lambda_function" "contact_lambda" {
   function_name = var.lambda_function_name
-  role          = aws_iam_role.lambda_role.arn
+  role          = aws_iam_role.contact_lambda_role.arn
   handler       = "sendEmailApi.handler"
   runtime       = "nodejs20.x"
 
@@ -667,7 +760,7 @@ resource "aws_lambda_function" "reset_user_password_lambda" {
 
 resource "aws_lambda_function" "chat_lambda" {
   function_name = "chat-lambda"
-  role          = aws_iam_role.lambda_role.arn
+  role          = aws_iam_role.chat_lambda_role.arn
   handler       = "chatHandler.handler"
   runtime       = "nodejs20.x"
   timeout       = 30  # Increased timeout for API calls
@@ -690,7 +783,7 @@ resource "aws_lambda_function" "chat_lambda" {
 # ===== Trade Scanner Lambda (EventBridge scheduled) =====
 resource "aws_lambda_function" "trade_scanner_lambda" {
   function_name = "trade-scanner-lambda"
-  role          = aws_iam_role.lambda_role.arn
+  role          = aws_iam_role.trade_scanner_lambda_role.arn
   handler       = "tradeScannerHandler.handler"
   runtime       = "nodejs20.x"
   # 10 tickers × 12s delay + processing time; set ceiling well above worst case
