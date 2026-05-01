@@ -2,7 +2,7 @@ import { APIGatewayProxyHandler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { getSession, getUserById, getUserByEmail, hashPassword } from './utils/auth';
-import { getCorsHeaders } from './utils/cors';
+import { getCorsHeaders, assertAllowedOrigin } from './utils/cors';
 import crypto from 'crypto';
 
 const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
@@ -12,12 +12,11 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   const corsHeaders = getCorsHeaders(event.headers.origin || event.headers.Origin);
 
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: corsHeaders,
-      body: ''
-    };
+    return { statusCode: 200, headers: corsHeaders, body: '' };
   }
+
+  const originError = assertAllowedOrigin(event, corsHeaders);
+  if (originError) return originError;
 
   try {
     // Get session from cookie

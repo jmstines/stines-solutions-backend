@@ -3,7 +3,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, QueryCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { getSession, getUserById } from './utils/auth';
-import { getCorsHeaders } from './utils/cors';
+import { getCorsHeaders, assertAllowedOrigin } from './utils/cors';
 import { callInference, getDefaultModel } from './utils/huggingface';
 
 const client = new DynamoDBClient({ region: 'us-east-1' });
@@ -33,12 +33,11 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   const corsHeaders = getCorsHeaders(event.headers.origin || event.headers.Origin);
 
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: corsHeaders,
-      body: ''
-    };
+    return { statusCode: 200, headers: corsHeaders, body: '' };
   }
+
+  const originError = assertAllowedOrigin(event, corsHeaders);
+  if (originError) return originError;
 
   try {
     // Verify authentication

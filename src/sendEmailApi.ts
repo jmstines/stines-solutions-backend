@@ -1,6 +1,6 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
 import AWS from 'aws-sdk';
-import { getCorsHeaders } from './utils/cors';
+import { getCorsHeaders, assertAllowedOrigin } from './utils/cors';
 
 const ses = new AWS.SES();
 
@@ -15,23 +15,11 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
   // Handle OPTIONS request
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: corsHeaders,
-      body: ''
-    };
+    return { statusCode: 200, headers: corsHeaders, body: '' };
   }
 
-  console.log('Request origin:', origin);
-  console.log('CORS Headers:', corsHeaders);
-
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: corsHeaders,
-      body: JSON.stringify({ message: 'CORS preflight OK' })
-    };
-  }
+  const originError = assertAllowedOrigin(event, corsHeaders);
+  if (originError) return originError;
 
   try {
     const body = JSON.parse(event.body || '{}');

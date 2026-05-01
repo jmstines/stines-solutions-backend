@@ -1,17 +1,16 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
 import { deleteSession } from './utils/auth';
-import { getCorsHeaders } from './utils/cors';
+import { getCorsHeaders, assertAllowedOrigin } from './utils/cors';
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   const corsHeaders = getCorsHeaders(event.headers.origin || event.headers.Origin);
 
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: corsHeaders,
-      body: ''
-    };
+    return { statusCode: 200, headers: corsHeaders, body: '' };
   }
+
+  const originError = assertAllowedOrigin(event, corsHeaders);
+  if (originError) return originError;
 
   try {
     const cookies = event.headers.Cookie || event.headers.cookie || '';

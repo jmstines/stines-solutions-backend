@@ -136,8 +136,9 @@ resource "aws_lambda_function" "login_lambda" {
 
   environment {
     variables = {
-      USERS_TABLE    = aws_dynamodb_table.users.name
-      SESSIONS_TABLE = aws_dynamodb_table.sessions.name
+      USERS_TABLE      = aws_dynamodb_table.users.name
+      SESSIONS_TABLE   = aws_dynamodb_table.sessions.name
+      COOKIE_SAME_SITE = "None"
     }
   }
 }

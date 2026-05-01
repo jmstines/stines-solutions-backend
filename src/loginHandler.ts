@@ -1,17 +1,16 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
 import { getUserByEmail, verifyPassword, createSession } from './utils/auth';
-import { getCorsHeaders } from './utils/cors';
+import { getCorsHeaders, assertAllowedOrigin } from './utils/cors';
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   const corsHeaders = getCorsHeaders(event.headers.origin || event.headers.Origin);
 
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: corsHeaders,
-      body: ''
-    };
+    return { statusCode: 200, headers: corsHeaders, body: '' };
   }
+
+  const originError = assertAllowedOrigin(event, corsHeaders);
+  if (originError) return originError;
 
   try {
     const body = JSON.parse(event.body || '{}');
@@ -48,11 +47,12 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     // Create session
     const session = await createSession(user.userId);
 
+    const sameSite = process.env.COOKIE_SAME_SITE || 'Lax';
     return {
       statusCode: 200,
       headers: {
         ...corsHeaders,
-        'Set-Cookie': `sessionId=${session.sessionId}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=${24 * 60 * 60}`
+        'Set-Cookie': `sessionId=${session.sessionId}; HttpOnly; Secure; SameSite=${sameSite}; Path=/; Max-Age=${24 * 60 * 60}`
       },
       body: JSON.stringify({
         user: {
