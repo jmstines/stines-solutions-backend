@@ -128,6 +128,7 @@ resource "aws_lambda_function" "login_lambda" {
   role          = aws_iam_role.lambda_role.arn
   handler       = "loginHandler.handler"
   runtime       = "nodejs20.x"
+  timeout       = 10  # bcrypt + DynamoDB needs headroom
 
   # All Lambda functions share the same deployment package
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
@@ -148,6 +149,7 @@ resource "aws_lambda_function" "verify_lambda" {
   role          = aws_iam_role.lambda_role.arn
   handler       = "verifyHandler.handler"
   runtime       = "nodejs20.x"
+  timeout       = 10
 
   # All Lambda functions share the same deployment package
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
@@ -167,6 +169,7 @@ resource "aws_lambda_function" "logout_lambda" {
   role          = aws_iam_role.lambda_role.arn
   handler       = "logoutHandler.handler"
   runtime       = "nodejs20.x"
+  timeout       = 10
 
   # All Lambda functions share the same deployment package
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
