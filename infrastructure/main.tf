@@ -274,6 +274,145 @@ resource "aws_iam_role_policy" "change_password_lambda_policy" {
   })
 }
 
+# ===== Per-Function IAM Roles (Batch 3) =====
+
+# ----- Create User Lambda Role -----
+resource "aws_iam_role" "create_user_lambda_role" {
+  name               = "create-user-lambda-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "create_user_lambda_basic" {
+  role       = aws_iam_role.create_user_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "create_user_lambda_policy" {
+  name = "create-user-lambda-policy"
+  role = aws_iam_role.create_user_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem"]
+        Resource = [aws_dynamodb_table.sessions.arn]
+      },
+      {
+        Effect = "Allow"
+        Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query"]
+        Resource = [
+          aws_dynamodb_table.users.arn,
+          "${aws_dynamodb_table.users.arn}/index/*",
+        ]
+      }
+    ]
+  })
+}
+
+# ----- Delete User Lambda Role -----
+resource "aws_iam_role" "delete_user_lambda_role" {
+  name               = "delete-user-lambda-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "delete_user_lambda_basic" {
+  role       = aws_iam_role.delete_user_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "delete_user_lambda_policy" {
+  name = "delete-user-lambda-policy"
+  role = aws_iam_role.delete_user_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem"]
+        Resource = [aws_dynamodb_table.sessions.arn]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:DeleteItem"]
+        Resource = [aws_dynamodb_table.users.arn]
+      }
+    ]
+  })
+}
+
+# ----- Update User Lambda Role -----
+resource "aws_iam_role" "update_user_lambda_role" {
+  name               = "update-user-lambda-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "update_user_lambda_basic" {
+  role       = aws_iam_role.update_user_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "update_user_lambda_policy" {
+  name = "update-user-lambda-policy"
+  role = aws_iam_role.update_user_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem"]
+        Resource = [aws_dynamodb_table.sessions.arn]
+      },
+      {
+        Effect = "Allow"
+        Action = ["dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query"]
+        Resource = [
+          aws_dynamodb_table.users.arn,
+          "${aws_dynamodb_table.users.arn}/index/*",
+        ]
+      }
+    ]
+  })
+}
+
+# ----- Reset Password Lambda Role -----
+resource "aws_iam_role" "reset_user_password_lambda_role" {
+  name               = "reset-password-lambda-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "reset_user_password_lambda_basic" {
+  role       = aws_iam_role.reset_user_password_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "reset_user_password_lambda_policy" {
+  name = "reset-password-lambda-policy"
+  role = aws_iam_role.reset_user_password_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["dynamodb:GetItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:BatchWriteItem"]
+        Resource = [
+          aws_dynamodb_table.sessions.arn,
+          "${aws_dynamodb_table.sessions.arn}/index/*",
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+        Resource = [aws_dynamodb_table.users.arn]
+      }
+    ]
+  })
+}
+
 resource "aws_iam_policy" "lambda_ses" {
   name = "lambda-ses-policy"
   
@@ -434,7 +573,7 @@ resource "aws_lambda_function" "change_password_lambda" {
 
 resource "aws_lambda_function" "create_user_lambda" {
   function_name = "auth-create-user-lambda"
-  role          = aws_iam_role.lambda_role.arn
+  role          = aws_iam_role.create_user_lambda_role.arn
   handler       = "createUserHandler.handler"
   runtime       = "nodejs20.x"
   timeout       = 10  # Timeout for password hashing
@@ -472,7 +611,7 @@ resource "aws_lambda_function" "list_users_lambda" {
 
 resource "aws_lambda_function" "delete_user_lambda" {
   function_name = "auth-delete-user-lambda"
-  role          = aws_iam_role.lambda_role.arn
+  role          = aws_iam_role.delete_user_lambda_role.arn
   handler       = "deleteUserHandler.handler"
   runtime       = "nodejs20.x"
 
@@ -490,7 +629,7 @@ resource "aws_lambda_function" "delete_user_lambda" {
 
 resource "aws_lambda_function" "update_user_lambda" {
   function_name = "auth-update-user-lambda"
-  role          = aws_iam_role.lambda_role.arn
+  role          = aws_iam_role.update_user_lambda_role.arn
   handler       = "updateUserHandler.handler"
   runtime       = "nodejs20.x"
   timeout       = 10
@@ -509,7 +648,7 @@ resource "aws_lambda_function" "update_user_lambda" {
 
 resource "aws_lambda_function" "reset_user_password_lambda" {
   function_name = "auth-reset-user-password-lambda"
-  role          = aws_iam_role.lambda_role.arn
+  role          = aws_iam_role.reset_user_password_lambda_role.arn
   handler       = "resetUserPasswordHandler.handler"
   runtime       = "nodejs20.x"
   timeout       = 10  # Timeout for password hashing
