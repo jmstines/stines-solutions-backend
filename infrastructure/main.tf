@@ -56,7 +56,10 @@ resource "aws_iam_policy" "lambda_ses" {
         "ses:SendRawEmail"
       ]
       Effect   = "Allow"
-      Resource = "*"
+      Resource = [
+        "arn:aws:ses:${var.aws_region}:${data.aws_caller_identity.current.account_id}:identity/${var.source_email}",
+        "arn:aws:ses:${var.aws_region}:${data.aws_caller_identity.current.account_id}:identity/${var.destination_email}"
+      ]
     }]
   })
 }
