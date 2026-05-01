@@ -177,6 +177,103 @@ resource "aws_iam_role_policy" "trade_signals_lambda_policy" {
   })
 }
 
+# ===== Per-Function IAM Roles (Batch 2) =====
+
+# ----- Login Lambda Role -----
+resource "aws_iam_role" "login_lambda_role" {
+  name               = "login-lambda-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "login_lambda_basic" {
+  role       = aws_iam_role.login_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "login_lambda_policy" {
+  name = "login-lambda-policy"
+  role = aws_iam_role.login_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["dynamodb:Query"]
+        Resource = [
+          aws_dynamodb_table.users.arn,
+          "${aws_dynamodb_table.users.arn}/index/*",
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:PutItem"]
+        Resource = [aws_dynamodb_table.sessions.arn]
+      }
+    ]
+  })
+}
+
+# ----- Logout Lambda Role -----
+resource "aws_iam_role" "logout_lambda_role" {
+  name               = "logout-lambda-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "logout_lambda_basic" {
+  role       = aws_iam_role.logout_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "logout_lambda_policy" {
+  name = "logout-lambda-policy"
+  role = aws_iam_role.logout_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:DeleteItem"]
+      Resource = [aws_dynamodb_table.sessions.arn]
+    }]
+  })
+}
+
+# ----- Change Password Lambda Role -----
+resource "aws_iam_role" "change_password_lambda_role" {
+  name               = "change-password-lambda-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "change_password_lambda_basic" {
+  role       = aws_iam_role.change_password_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "change_password_lambda_policy" {
+  name = "change-password-lambda-policy"
+  role = aws_iam_role.change_password_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["dynamodb:GetItem", "dynamodb:UpdateItem"]
+        Resource = [aws_dynamodb_table.users.arn]
+      },
+      {
+        Effect = "Allow"
+        Action = ["dynamodb:GetItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:BatchWriteItem"]
+        Resource = [
+          aws_dynamodb_table.sessions.arn,
+          "${aws_dynamodb_table.sessions.arn}/index/*",
+        ]
+      }
+    ]
+  })
+}
+
 resource "aws_iam_policy" "lambda_ses" {
   name = "lambda-ses-policy"
   
@@ -257,7 +354,7 @@ resource "aws_lambda_function" "contact_lambda" {
 
 resource "aws_lambda_function" "login_lambda" {
   function_name = "auth-login-lambda"
-  role          = aws_iam_role.lambda_role.arn
+  role          = aws_iam_role.login_lambda_role.arn
   handler       = "loginHandler.handler"
   runtime       = "nodejs20.x"
   timeout       = 10  # bcrypt + DynamoDB needs headroom
@@ -298,7 +395,7 @@ resource "aws_lambda_function" "verify_lambda" {
 
 resource "aws_lambda_function" "logout_lambda" {
   function_name = "auth-logout-lambda"
-  role          = aws_iam_role.lambda_role.arn
+  role          = aws_iam_role.logout_lambda_role.arn
   handler       = "logoutHandler.handler"
   runtime       = "nodejs20.x"
   timeout       = 10
@@ -317,7 +414,7 @@ resource "aws_lambda_function" "logout_lambda" {
 
 resource "aws_lambda_function" "change_password_lambda" {
   function_name = "auth-change-password-lambda"
-  role          = aws_iam_role.lambda_role.arn
+  role          = aws_iam_role.change_password_lambda_role.arn
   handler       = "changePasswordHandler.handler"
   runtime       = "nodejs20.x"
   timeout       = 10  # Timeout for password hashing
