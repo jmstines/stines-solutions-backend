@@ -45,6 +45,138 @@ resource "aws_iam_role_policy_attachment" "lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+# ===== Per-Function IAM Roles (Batch 1) =====
+
+locals {
+  lambda_assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+    }]
+  })
+}
+
+# ----- Authorizer Lambda Role -----
+resource "aws_iam_role" "authorizer_lambda_role" {
+  name               = "authorizer-lambda-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "authorizer_lambda_basic" {
+  role       = aws_iam_role.authorizer_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "authorizer_lambda_policy" {
+  name = "authorizer-lambda-policy"
+  role = aws_iam_role.authorizer_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:GetItem"]
+      Resource = [
+        aws_dynamodb_table.sessions.arn,
+        aws_dynamodb_table.users.arn,
+      ]
+    }]
+  })
+}
+
+# ----- Verify Lambda Role -----
+resource "aws_iam_role" "verify_lambda_role" {
+  name               = "verify-lambda-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "verify_lambda_basic" {
+  role       = aws_iam_role.verify_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "verify_lambda_policy" {
+  name = "verify-lambda-policy"
+  role = aws_iam_role.verify_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:GetItem"]
+      Resource = [
+        aws_dynamodb_table.sessions.arn,
+        aws_dynamodb_table.users.arn,
+      ]
+    }]
+  })
+}
+
+# ----- List Users Lambda Role -----
+resource "aws_iam_role" "list_users_lambda_role" {
+  name               = "list-users-lambda-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "list_users_lambda_basic" {
+  role       = aws_iam_role.list_users_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "list_users_lambda_policy" {
+  name = "list-users-lambda-policy"
+  role = aws_iam_role.list_users_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:GetItem", "dynamodb:Scan"]
+      Resource = [
+        aws_dynamodb_table.sessions.arn,
+        aws_dynamodb_table.users.arn,
+      ]
+    }]
+  })
+}
+
+# ----- Trade Signals Lambda Role -----
+resource "aws_iam_role" "trade_signals_lambda_role" {
+  name               = "trade-signals-lambda-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "trade_signals_lambda_basic" {
+  role       = aws_iam_role.trade_signals_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "trade_signals_lambda_policy" {
+  name = "trade-signals-lambda-policy"
+  role = aws_iam_role.trade_signals_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem"]
+        Resource = [aws_dynamodb_table.sessions.arn]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:Query"]
+        Resource = [
+          aws_dynamodb_table.trade_signals.arn,
+          "${aws_dynamodb_table.trade_signals.arn}/index/*",
+        ]
+      }
+    ]
+  })
+}
+
 resource "aws_iam_policy" "lambda_ses" {
   name = "lambda-ses-policy"
   
@@ -146,7 +278,7 @@ resource "aws_lambda_function" "login_lambda" {
 
 resource "aws_lambda_function" "verify_lambda" {
   function_name = "auth-verify-lambda"
-  role          = aws_iam_role.lambda_role.arn
+  role          = aws_iam_role.verify_lambda_role.arn
   handler       = "verifyHandler.handler"
   runtime       = "nodejs20.x"
   timeout       = 10
@@ -225,7 +357,7 @@ resource "aws_lambda_function" "create_user_lambda" {
 
 resource "aws_lambda_function" "list_users_lambda" {
   function_name = "auth-list-users-lambda"
-  role          = aws_iam_role.lambda_role.arn
+  role          = aws_iam_role.list_users_lambda_role.arn
   handler       = "listUsersHandler.handler"
   runtime       = "nodejs20.x"
 
@@ -344,7 +476,7 @@ resource "aws_lambda_function" "trade_scanner_lambda" {
 # ===== Trade Signals API Lambda (API Gateway GET /trade-signals) =====
 resource "aws_lambda_function" "trade_signals_lambda" {
   function_name = "trade-signals-lambda"
-  role          = aws_iam_role.lambda_role.arn
+  role          = aws_iam_role.trade_signals_lambda_role.arn
   handler       = "tradeSignalsHandler.handler"
   runtime       = "nodejs20.x"
   timeout       = 10
@@ -388,7 +520,7 @@ resource "aws_lambda_permission" "eventbridge_trade_scanner" {
 # ===== API Gateway Authorizer Lambda =====
 resource "aws_lambda_function" "authorizer_lambda" {
   function_name = "authorizer-lambda"
-  role          = aws_iam_role.lambda_role.arn
+  role          = aws_iam_role.authorizer_lambda_role.arn
   handler       = "authorizerHandler.handler"
   runtime       = "nodejs20.x"
   timeout       = 10
