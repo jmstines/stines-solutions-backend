@@ -683,7 +683,7 @@ resource "aws_api_gateway_method_settings" "all" {
 
   settings {
     logging_level      = "INFO"
-    data_trace_enabled = true
+    data_trace_enabled = false
     metrics_enabled    = true
     throttling_burst_limit = 100  # Max concurrent requests
     throttling_rate_limit  = 50   # Requests per second
