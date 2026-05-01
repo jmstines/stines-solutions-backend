@@ -83,6 +83,35 @@ export async function deleteSession(sessionId: string): Promise<void> {
   }).promise();
 }
 
+export async function deleteUserSessions(userId: string): Promise<void> {
+  let lastEvaluatedKey: AWS.DynamoDB.DocumentClient.Key | undefined;
+
+  do {
+    const result: AWS.DynamoDB.DocumentClient.QueryOutput = await dynamodb.query({
+      TableName: SESSIONS_TABLE,
+      IndexName: 'UserIdIndex',
+      KeyConditionExpression: 'userId = :userId',
+      ExpressionAttributeValues: { ':userId': userId },
+      ProjectionExpression: 'sessionId',
+      ExclusiveStartKey: lastEvaluatedKey,
+    }).promise();
+
+    const sessions = result.Items || [];
+    lastEvaluatedKey = result.LastEvaluatedKey;
+
+    for (let i = 0; i < sessions.length; i += 25) {
+      const batch = sessions.slice(i, i + 25);
+      await dynamodb.batchWrite({
+        RequestItems: {
+          [SESSIONS_TABLE]: batch.map(s => ({
+            DeleteRequest: { Key: { sessionId: s.sessionId } }
+          }))
+        }
+      }).promise();
+    }
+  } while (lastEvaluatedKey);
+}
+
 export async function getUserByEmail(email: string): Promise<User | null> {
   const result = await dynamodb.query({
     TableName: USERS_TABLE,

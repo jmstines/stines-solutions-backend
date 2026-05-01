@@ -1,7 +1,7 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { getSession, getUserById, hashPassword } from './utils/auth';
+import { getSession, getUserById, hashPassword, deleteUserSessions } from './utils/auth';
 import { getCorsHeaders, assertAllowedOrigin } from './utils/cors';
 
 const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
@@ -67,6 +67,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       UpdateExpression: 'SET passwordHash = :hash',
       ExpressionAttributeValues: { ':hash': passwordHash },
     }));
+
+    await deleteUserSessions(targetUserId);
 
     return {
       statusCode: 200,

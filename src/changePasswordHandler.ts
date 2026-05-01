@@ -1,7 +1,7 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { getSession, getUserById, verifyPassword, hashPassword } from './utils/auth';
+import { getSession, getUserById, verifyPassword, hashPassword, deleteUserSessions } from './utils/auth';
 import { getCorsHeaders, assertAllowedOrigin } from './utils/cors';
 
 const dynamoClient = new DynamoDBClient({ region: 'us-east-1' });
@@ -86,22 +86,23 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     // Hash new password
     const newPasswordHash = await hashPassword(newPassword);
 
-    // Update password in database
+    // Update password and revoke all sessions
     await docClient.send(new UpdateCommand({
       TableName: 'stines-solutions-users',
-      Key: {
-        userId: user.userId
-      },
+      Key: { userId: user.userId },
       UpdateExpression: 'SET passwordHash = :newPasswordHash',
-      ExpressionAttributeValues: {
-        ':newPasswordHash': newPasswordHash
-      }
+      ExpressionAttributeValues: { ':newPasswordHash': newPasswordHash }
     }));
+
+    await deleteUserSessions(user.userId);
 
     return {
       statusCode: 200,
-      headers: corsHeaders,
-      body: JSON.stringify({ message: 'Password changed successfully' })
+      headers: {
+        ...corsHeaders,
+        'Set-Cookie': 'sessionId=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0'
+      },
+      body: JSON.stringify({ message: 'Password changed successfully. Please log in again.' })
     };
 
   } catch (error: any) {
