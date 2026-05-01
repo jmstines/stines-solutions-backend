@@ -104,7 +104,7 @@ resource "aws_lambda_function" "contact_lambda" {
   function_name = var.lambda_function_name
   role          = aws_iam_role.lambda_role.arn
   handler       = "sendEmailApi.handler"
-  runtime       = "nodejs18.x"
+  runtime       = "nodejs20.x"
 
   # Use S3 artifacts from infrastructure project
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
@@ -127,7 +127,7 @@ resource "aws_lambda_function" "login_lambda" {
   function_name = "auth-login-lambda"
   role          = aws_iam_role.lambda_role.arn
   handler       = "loginHandler.handler"
-  runtime       = "nodejs18.x"
+  runtime       = "nodejs20.x"
 
   # All Lambda functions share the same deployment package
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
@@ -146,7 +146,7 @@ resource "aws_lambda_function" "verify_lambda" {
   function_name = "auth-verify-lambda"
   role          = aws_iam_role.lambda_role.arn
   handler       = "verifyHandler.handler"
-  runtime       = "nodejs18.x"
+  runtime       = "nodejs20.x"
 
   # All Lambda functions share the same deployment package
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
@@ -165,7 +165,7 @@ resource "aws_lambda_function" "logout_lambda" {
   function_name = "auth-logout-lambda"
   role          = aws_iam_role.lambda_role.arn
   handler       = "logoutHandler.handler"
-  runtime       = "nodejs18.x"
+  runtime       = "nodejs20.x"
 
   # All Lambda functions share the same deployment package
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
@@ -183,7 +183,7 @@ resource "aws_lambda_function" "change_password_lambda" {
   function_name = "auth-change-password-lambda"
   role          = aws_iam_role.lambda_role.arn
   handler       = "changePasswordHandler.handler"
-  runtime       = "nodejs18.x"
+  runtime       = "nodejs20.x"
   timeout       = 10  # Timeout for password hashing
 
   # All Lambda functions share the same deployment package
@@ -203,7 +203,7 @@ resource "aws_lambda_function" "create_user_lambda" {
   function_name = "auth-create-user-lambda"
   role          = aws_iam_role.lambda_role.arn
   handler       = "createUserHandler.handler"
-  runtime       = "nodejs18.x"
+  runtime       = "nodejs20.x"
   timeout       = 10  # Timeout for password hashing
 
   # All Lambda functions share the same deployment package
@@ -223,7 +223,7 @@ resource "aws_lambda_function" "list_users_lambda" {
   function_name = "auth-list-users-lambda"
   role          = aws_iam_role.lambda_role.arn
   handler       = "listUsersHandler.handler"
-  runtime       = "nodejs18.x"
+  runtime       = "nodejs20.x"
 
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
   s3_key           = var.lambda_code_s3_key
@@ -241,7 +241,7 @@ resource "aws_lambda_function" "delete_user_lambda" {
   function_name = "auth-delete-user-lambda"
   role          = aws_iam_role.lambda_role.arn
   handler       = "deleteUserHandler.handler"
-  runtime       = "nodejs18.x"
+  runtime       = "nodejs20.x"
 
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
   s3_key           = var.lambda_code_s3_key
@@ -259,7 +259,7 @@ resource "aws_lambda_function" "update_user_lambda" {
   function_name = "auth-update-user-lambda"
   role          = aws_iam_role.lambda_role.arn
   handler       = "updateUserHandler.handler"
-  runtime       = "nodejs18.x"
+  runtime       = "nodejs20.x"
   timeout       = 10
 
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
@@ -278,7 +278,7 @@ resource "aws_lambda_function" "reset_user_password_lambda" {
   function_name = "auth-reset-user-password-lambda"
   role          = aws_iam_role.lambda_role.arn
   handler       = "resetUserPasswordHandler.handler"
-  runtime       = "nodejs18.x"
+  runtime       = "nodejs20.x"
   timeout       = 10  # Timeout for password hashing
 
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
@@ -297,7 +297,7 @@ resource "aws_lambda_function" "chat_lambda" {
   function_name = "chat-lambda"
   role          = aws_iam_role.lambda_role.arn
   handler       = "chatHandler.handler"
-  runtime       = "nodejs18.x"
+  runtime       = "nodejs20.x"
   timeout       = 30  # Increased timeout for API calls
 
   # All Lambda functions share the same deployment package
@@ -320,7 +320,7 @@ resource "aws_lambda_function" "trade_scanner_lambda" {
   function_name = "trade-scanner-lambda"
   role          = aws_iam_role.lambda_role.arn
   handler       = "tradeScannerHandler.handler"
-  runtime       = "nodejs18.x"
+  runtime       = "nodejs20.x"
   # 10 tickers × 12s delay + processing time; set ceiling well above worst case
   timeout       = 300
 
@@ -342,7 +342,7 @@ resource "aws_lambda_function" "trade_signals_lambda" {
   function_name = "trade-signals-lambda"
   role          = aws_iam_role.lambda_role.arn
   handler       = "tradeSignalsHandler.handler"
-  runtime       = "nodejs18.x"
+  runtime       = "nodejs20.x"
   timeout       = 10
 
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
