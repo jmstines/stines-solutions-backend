@@ -33,6 +33,10 @@ resource "aws_api_gateway_deployment" "backend_deployment" {
     aws_api_gateway_integration.watchlist_options,
     aws_api_gateway_integration.watchlist_symbol_delete,
     aws_api_gateway_integration.watchlist_symbol_options,
+    aws_api_gateway_integration.stock_symbols_get,
+    aws_api_gateway_integration.stock_symbols_options,
+    aws_api_gateway_integration.stock_symbols_refresh_post,
+    aws_api_gateway_integration.stock_symbols_refresh_options,
   ]
 
   lifecycle {
@@ -66,6 +70,9 @@ resource "aws_api_gateway_deployment" "backend_deployment" {
       aws_api_gateway_resource.watchlist_resource.id,
       aws_api_gateway_resource.watchlist_symbol_resource.id,
       aws_lambda_function.watchlist_lambda.id,
+      aws_api_gateway_resource.stock_symbols_resource.id,
+      aws_api_gateway_resource.stock_symbols_refresh_resource.id,
+      aws_lambda_function.stock_symbols_lambda.id,
       aws_api_gateway_authorizer.session_authorizer.id,
       var.lambda_code_s3_key, # Auto-redeploy when Lambda code changes
     ]))
@@ -1168,6 +1175,126 @@ resource "aws_lambda_permission" "api_gateway_watchlist" {
   statement_id  = "AllowAPIGatewayInvokeWatchlist"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.watchlist_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/*/*"
+}
+
+# ===== /stock-symbols Resource =====
+resource "aws_api_gateway_resource" "stock_symbols_resource" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  parent_id   = aws_api_gateway_rest_api.backend_api.root_resource_id
+  path_part   = "stock-symbols"
+}
+
+# GET /stock-symbols
+resource "aws_api_gateway_method" "stock_symbols_get" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.stock_symbols_resource.id
+  http_method   = "GET"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.session_authorizer.id
+}
+
+resource "aws_api_gateway_integration" "stock_symbols_get" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.stock_symbols_resource.id
+  http_method             = aws_api_gateway_method.stock_symbols_get.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.stock_symbols_lambda.invoke_arn
+}
+
+# OPTIONS /stock-symbols
+resource "aws_api_gateway_method" "stock_symbols_options" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.stock_symbols_resource.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "stock_symbols_options" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.stock_symbols_resource.id
+  http_method             = aws_api_gateway_method.stock_symbols_options.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.stock_symbols_lambda.invoke_arn
+}
+
+resource "aws_api_gateway_method_response" "stock_symbols_options" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  resource_id = aws_api_gateway_resource.stock_symbols_resource.id
+  http_method = aws_api_gateway_method.stock_symbols_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"      = true
+    "method.response.header.Access-Control-Allow-Methods"     = true
+    "method.response.header.Access-Control-Allow-Headers"     = true
+    "method.response.header.Access-Control-Allow-Credentials" = true
+  }
+}
+
+# /stock-symbols/refresh
+resource "aws_api_gateway_resource" "stock_symbols_refresh_resource" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  parent_id   = aws_api_gateway_resource.stock_symbols_resource.id
+  path_part   = "refresh"
+}
+
+# POST /stock-symbols/refresh
+resource "aws_api_gateway_method" "stock_symbols_refresh_post" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.stock_symbols_refresh_resource.id
+  http_method   = "POST"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.session_authorizer.id
+}
+
+resource "aws_api_gateway_integration" "stock_symbols_refresh_post" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.stock_symbols_refresh_resource.id
+  http_method             = aws_api_gateway_method.stock_symbols_refresh_post.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.stock_symbols_lambda.invoke_arn
+}
+
+# OPTIONS /stock-symbols/refresh
+resource "aws_api_gateway_method" "stock_symbols_refresh_options" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.stock_symbols_refresh_resource.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "stock_symbols_refresh_options" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.stock_symbols_refresh_resource.id
+  http_method             = aws_api_gateway_method.stock_symbols_refresh_options.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.stock_symbols_lambda.invoke_arn
+}
+
+resource "aws_api_gateway_method_response" "stock_symbols_refresh_options" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  resource_id = aws_api_gateway_resource.stock_symbols_refresh_resource.id
+  http_method = aws_api_gateway_method.stock_symbols_refresh_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"      = true
+    "method.response.header.Access-Control-Allow-Methods"     = true
+    "method.response.header.Access-Control-Allow-Headers"     = true
+    "method.response.header.Access-Control-Allow-Credentials" = true
+  }
+}
+
+resource "aws_lambda_permission" "api_gateway_stock_symbols" {
+  statement_id  = "AllowAPIGatewayInvokeStockSymbols"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.stock_symbols_lambda.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/*/*"
 }
