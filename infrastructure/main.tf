@@ -492,6 +492,11 @@ resource "aws_iam_role_policy_attachment" "trade_scanner_lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+resource "aws_iam_role_policy_attachment" "trade_scanner_sqs_execution" {
+  role       = aws_iam_role.trade_scanner_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole"
+}
+
 resource "aws_iam_role_policy" "trade_scanner_lambda_policy" {
   name = "trade-scanner-lambda-policy"
   role = aws_iam_role.trade_scanner_lambda_role.id
@@ -501,13 +506,45 @@ resource "aws_iam_role_policy" "trade_scanner_lambda_policy" {
     Statement = [
       {
         Effect   = "Allow"
+        Action   = ["dynamodb:PutItem", "dynamodb:UpdateItem"]
+        Resource = [aws_dynamodb_table.trade_signals.arn]
+      }
+    ]
+  })
+}
+
+# ===== Trade Scan Dispatcher IAM =====
+resource "aws_iam_role" "trade_scan_dispatcher_role" {
+  name               = "trade-scan-dispatcher-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "trade_scan_dispatcher_basic" {
+  role       = aws_iam_role.trade_scan_dispatcher_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "trade_scan_dispatcher_policy" {
+  name = "trade-scan-dispatcher-policy"
+  role = aws_iam_role.trade_scan_dispatcher_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:Scan"]
+        Resource = [aws_dynamodb_table.watchlist.arn]
+      },
+      {
+        Effect   = "Allow"
         Action   = ["dynamodb:PutItem"]
         Resource = [aws_dynamodb_table.trade_signals.arn]
       },
       {
         Effect   = "Allow"
-        Action   = ["dynamodb:Scan"]
-        Resource = [aws_dynamodb_table.watchlist.arn]
+        Action   = ["sqs:SendMessage"]
+        Resource = [aws_sqs_queue.trade_scan_queue.arn]
       }
     ]
   })
@@ -787,14 +824,55 @@ resource "aws_lambda_function" "chat_lambda" {
   }
 }
 
-# ===== Trade Scanner Lambda (EventBridge scheduled) =====
+# ===== SQS Queue for trade scan jobs =====
+resource "aws_sqs_queue" "trade_scan_queue" {
+  name                       = "trade-scan-queue"
+  # Worker processes one message at a time; 30s visibility prevents double-processing
+  visibility_timeout_seconds = 30
+  # Messages that fail after 3 attempts go to dead letter queue
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.trade_scan_dlq.arn
+    maxReceiveCount     = 3
+  })
+}
+
+resource "aws_sqs_queue" "trade_scan_dlq" {
+  name                      = "trade-scan-dlq"
+  message_retention_seconds = 86400 # 1 day
+}
+
+# ===== Trade Scan Dispatcher Lambda (EventBridge scheduled + POST /trade-scan/run) =====
+resource "aws_lambda_function" "trade_scan_dispatcher_lambda" {
+  function_name = "trade-scan-dispatcher-lambda"
+  role          = aws_iam_role.trade_scan_dispatcher_role.arn
+  handler       = "tradeScanDispatcherHandler.handler"
+  runtime       = "nodejs20.x"
+  # Dispatcher just reads watchlist + enqueues messages — should finish in a few seconds
+  timeout       = 30
+
+  s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
+  s3_key           = var.lambda_code_s3_key
+  source_code_hash = data.aws_s3_object.lambda_zip.etag
+
+  environment {
+    variables = {
+      TRADE_SIGNALS_TABLE = aws_dynamodb_table.trade_signals.name
+      WATCHLIST_TABLE     = aws_dynamodb_table.watchlist.name
+      SCAN_QUEUE_URL      = aws_sqs_queue.trade_scan_queue.url
+    }
+  }
+}
+
+# ===== Trade Scanner Lambda (SQS worker — one ticker per invocation) =====
 resource "aws_lambda_function" "trade_scanner_lambda" {
   function_name = "trade-scanner-lambda"
   role          = aws_iam_role.trade_scanner_lambda_role.arn
   handler       = "tradeScannerHandler.handler"
   runtime       = "nodejs20.x"
-  # 10 tickers × 12s delay + processing time; set ceiling well above worst case
-  timeout       = 300
+  # Each invocation processes exactly 1 ticker — 15s is more than enough
+  timeout                        = 15
+  # Concurrency=1 ensures sequential processing — no parallel Twelve Data calls
+  reserved_concurrent_executions = 1
 
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
   s3_key           = var.lambda_code_s3_key
@@ -804,9 +882,16 @@ resource "aws_lambda_function" "trade_scanner_lambda" {
     variables = {
       TRADE_SIGNALS_TABLE = aws_dynamodb_table.trade_signals.name
       TWELVE_DATA_API_KEY = var.twelve_data_api_key
-      WATCHLIST_TABLE     = aws_dynamodb_table.watchlist.name
     }
   }
+}
+
+# Trigger worker Lambda from SQS (batch_size=1 = one ticker per invocation)
+resource "aws_lambda_event_source_mapping" "trade_scan_sqs_trigger" {
+  event_source_arn = aws_sqs_queue.trade_scan_queue.arn
+  function_name    = aws_lambda_function.trade_scanner_lambda.arn
+  batch_size       = 1
+  enabled          = true
 }
 
 # ===== Trade Signals API Lambda (API Gateway GET /trade-signals) =====
@@ -950,14 +1035,14 @@ resource "aws_cloudwatch_event_rule" "trade_scanner_schedule" {
 
 resource "aws_cloudwatch_event_target" "trade_scanner_target" {
   rule      = aws_cloudwatch_event_rule.trade_scanner_schedule.name
-  target_id = "TradeScannerLambda"
-  arn       = aws_lambda_function.trade_scanner_lambda.arn
+  target_id = "TradeScanDispatcherLambda"
+  arn       = aws_lambda_function.trade_scan_dispatcher_lambda.arn
 }
 
 resource "aws_lambda_permission" "eventbridge_trade_scanner" {
-  statement_id  = "AllowEventBridgeInvokeTradeScannerLambda"
+  statement_id  = "AllowEventBridgeInvokeTradeScanDispatcherLambda"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.trade_scanner_lambda.function_name
+  function_name = aws_lambda_function.trade_scan_dispatcher_lambda.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.trade_scanner_schedule.arn
 }

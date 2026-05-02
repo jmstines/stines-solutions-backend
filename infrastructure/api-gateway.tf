@@ -37,6 +37,8 @@ resource "aws_api_gateway_deployment" "backend_deployment" {
     aws_api_gateway_integration.stock_symbols_options,
     aws_api_gateway_integration.stock_symbols_refresh_post,
     aws_api_gateway_integration.stock_symbols_refresh_options,
+    aws_api_gateway_integration.trade_scan_run_post,
+    aws_api_gateway_integration.trade_scan_run_options,
   ]
 
   lifecycle {
@@ -73,6 +75,9 @@ resource "aws_api_gateway_deployment" "backend_deployment" {
       aws_api_gateway_resource.stock_symbols_resource.id,
       aws_api_gateway_resource.stock_symbols_refresh_resource.id,
       aws_lambda_function.stock_symbols_lambda.id,
+      aws_api_gateway_resource.trade_scan_resource.id,
+      aws_api_gateway_resource.trade_scan_run_resource.id,
+      aws_lambda_function.trade_scan_dispatcher_lambda.id,
       aws_api_gateway_authorizer.session_authorizer.id,
       var.lambda_code_s3_key, # Auto-redeploy when Lambda code changes
     ]))
@@ -1295,6 +1300,77 @@ resource "aws_lambda_permission" "api_gateway_stock_symbols" {
   statement_id  = "AllowAPIGatewayInvokeStockSymbols"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.stock_symbols_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/*/*"
+}
+
+# ===== /trade-scan Resource =====
+resource "aws_api_gateway_resource" "trade_scan_resource" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  parent_id   = aws_api_gateway_rest_api.backend_api.root_resource_id
+  path_part   = "trade-scan"
+}
+
+# /trade-scan/run
+resource "aws_api_gateway_resource" "trade_scan_run_resource" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  parent_id   = aws_api_gateway_resource.trade_scan_resource.id
+  path_part   = "run"
+}
+
+# POST /trade-scan/run (admin-only, triggers dispatcher)
+resource "aws_api_gateway_method" "trade_scan_run_post" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.trade_scan_run_resource.id
+  http_method   = "POST"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.session_authorizer.id
+}
+
+resource "aws_api_gateway_integration" "trade_scan_run_post" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.trade_scan_run_resource.id
+  http_method             = aws_api_gateway_method.trade_scan_run_post.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.trade_scan_dispatcher_lambda.invoke_arn
+}
+
+# OPTIONS /trade-scan/run (CORS preflight)
+resource "aws_api_gateway_method" "trade_scan_run_options" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.trade_scan_run_resource.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "trade_scan_run_options" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.trade_scan_run_resource.id
+  http_method             = aws_api_gateway_method.trade_scan_run_options.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.trade_scan_dispatcher_lambda.invoke_arn
+}
+
+resource "aws_api_gateway_method_response" "trade_scan_run_options" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  resource_id = aws_api_gateway_resource.trade_scan_run_resource.id
+  http_method = aws_api_gateway_method.trade_scan_run_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+    "method.response.header.Access-Control-Allow-Credentials" = true
+  }
+}
+
+resource "aws_lambda_permission" "api_gateway_trade_scan_dispatcher" {
+  statement_id  = "AllowAPIGatewayInvokeTradeScanDispatcher"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.trade_scan_dispatcher_lambda.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/*/*"
 }
