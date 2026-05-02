@@ -873,6 +873,72 @@ resource "aws_lambda_function" "watchlist_lambda" {
   }
 }
 
+# ===== Stock Symbols Lambda (GET /stock-symbols + weekly EventBridge refresh) =====
+resource "aws_iam_role" "stock_symbols_lambda_role" {
+  name               = "stock-symbols-lambda-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "stock_symbols_lambda_basic" {
+  role       = aws_iam_role.stock_symbols_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "stock_symbols_lambda_policy" {
+  name = "stock-symbols-lambda-policy"
+  role = aws_iam_role.stock_symbols_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:GetItem", "dynamodb:PutItem"]
+      Resource = [aws_dynamodb_table.stock_symbols_cache.arn]
+    }]
+  })
+}
+
+resource "aws_lambda_function" "stock_symbols_lambda" {
+  function_name = "stock-symbols-lambda"
+  role          = aws_iam_role.stock_symbols_lambda_role.arn
+  handler       = "stockSymbolsHandler.handler"
+  runtime       = "nodejs20.x"
+  # Fetching two exchanges from Twelve Data takes a few seconds
+  timeout       = 30
+
+  s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
+  s3_key           = var.lambda_code_s3_key
+  source_code_hash = data.aws_s3_object.lambda_zip.etag
+
+  environment {
+    variables = {
+      STOCK_SYMBOLS_TABLE = aws_dynamodb_table.stock_symbols_cache.name
+      TWELVE_DATA_API_KEY = var.twelve_data_api_key
+    }
+  }
+}
+
+# Weekly refresh — Sunday at 2am UTC (well outside market hours)
+resource "aws_cloudwatch_event_rule" "stock_symbols_schedule" {
+  name                = "stock-symbols-weekly-refresh"
+  description         = "Refresh stock symbol cache from Twelve Data every Sunday at 2am UTC"
+  schedule_expression = "cron(0 2 ? * SUN *)"
+}
+
+resource "aws_cloudwatch_event_target" "stock_symbols_target" {
+  rule      = aws_cloudwatch_event_rule.stock_symbols_schedule.name
+  target_id = "StockSymbolsLambda"
+  arn       = aws_lambda_function.stock_symbols_lambda.arn
+}
+
+resource "aws_lambda_permission" "eventbridge_stock_symbols" {
+  statement_id  = "AllowEventBridgeInvokeStockSymbolsLambda"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.stock_symbols_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.stock_symbols_schedule.arn
+}
+
 # ===== EventBridge: trigger trade scanner weekdays at 5 PM ET (21:05 UTC) =====
 # Note: 21:05 UTC = 5:05 PM ET (EST); accounts for slight post-close data availability
 # DST: during EDT (Mar–Nov) this runs at 5:05 PM EDT. Adjust cron if needed.

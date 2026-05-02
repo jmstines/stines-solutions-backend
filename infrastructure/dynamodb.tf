@@ -173,3 +173,26 @@ resource "aws_dynamodb_table" "watchlist" {
 output "watchlist_table_name" {
   value = aws_dynamodb_table.watchlist.name
 }
+
+# ===== Stock Symbols Cache Table =====
+# Single-item cache: PK="SYMBOLS", stores full symbol list from Twelve Data.
+# Refreshed weekly by EventBridge + on-demand via admin API.
+resource "aws_dynamodb_table" "stock_symbols_cache" {
+  name         = "stines-solutions-stock-symbols-cache"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "cacheKey"
+
+  attribute {
+    name = "cacheKey"
+    type = "S"
+  }
+
+  tags = {
+    Project     = "stines-solutions"
+    Environment = "production"
+  }
+}
+
+output "stock_symbols_cache_table_name" {
+  value = aws_dynamodb_table.stock_symbols_cache.name
+}
