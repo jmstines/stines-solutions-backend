@@ -3,6 +3,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import { randomUUID } from 'crypto';
+import { getCorsHeaders, assertAllowedOrigin } from './utils/cors';
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({ region: 'us-east-1' }));
 const sqs = new SQSClient({ region: 'us-east-1' });
@@ -14,12 +15,6 @@ const SCAN_QUEUE_URL = process.env.SCAN_QUEUE_URL!;
 const RATE_LIMIT_DELAY_S = 8;
 // SQS max delay per message is 900 seconds (~112 tickers). Beyond that we'd need batching.
 const SQS_MAX_DELAY_S = 900;
-
-const CORS_HEADERS = {
-  'Content-Type': 'application/json',
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Credentials': 'true',
-};
 
 /** Get the current market date as YYYY-MM-DD in Eastern Time */
 function getMarketDate(): string {
@@ -101,24 +96,21 @@ export const handler = async (
   }
 
   const apiEvent = event as APIGatewayProxyEvent;
+  const origin = apiEvent.headers.origin || apiEvent.headers.Origin;
+  const corsHeaders = getCorsHeaders(origin);
 
   if (apiEvent.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: {
-        ...CORS_HEADERS,
-        'Access-Control-Allow-Methods': 'POST,OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-      },
-      body: '',
-    };
+    return { statusCode: 200, headers: corsHeaders, body: '' };
   }
+
+  const originBlock = assertAllowedOrigin(apiEvent, corsHeaders);
+  if (originBlock) return originBlock;
 
   const role = apiEvent.requestContext.authorizer?.role;
   if (role !== 'admin') {
     return {
       statusCode: 403,
-      headers: CORS_HEADERS,
+      headers: corsHeaders,
       body: JSON.stringify({ error: 'Admin access required' }),
     };
   }
@@ -127,7 +119,7 @@ export const handler = async (
     const result = await dispatch(true);
     return {
       statusCode: 202,
-      headers: CORS_HEADERS,
+      headers: corsHeaders,
       body: JSON.stringify({
         message: `Scan dispatched for ${result.totalTickers} tickers`,
         scanRunId: result.scanRunId,
@@ -139,7 +131,7 @@ export const handler = async (
     console.error('Dispatch error:', msg);
     return {
       statusCode: 500,
-      headers: CORS_HEADERS,
+      headers: corsHeaders,
       body: JSON.stringify({ error: msg }),
     };
   }
