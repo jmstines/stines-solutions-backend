@@ -1,7 +1,7 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, QueryCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { getSession, getUserById } from './utils/auth';
 import { getCorsHeaders, assertAllowedOrigin } from './utils/cors';
 import { callInference, getDefaultModel } from './utils/huggingface';
@@ -132,7 +132,7 @@ async function handleSendMessage(event: any, userId: string, corsHeaders: any) {
     };
   }
 
-  const conversationId = body.conversationId || uuidv4();
+  const conversationId = body.conversationId || randomUUID();
   const model = body.model || getDefaultModel();
   const timestamp = Date.now();
   const expiresAt = Math.floor(timestamp / 1000) + (90 * 24 * 60 * 60); // 90 days
@@ -154,7 +154,7 @@ async function handleSendMessage(event: any, userId: string, corsHeaders: any) {
     // Save user message
     const userMessage: ChatMessage = {
       userId,
-      messageId: uuidv4(),
+      messageId: randomUUID(),
       conversationId,
       timestamp,
       role: 'user',
@@ -178,7 +178,7 @@ async function handleSendMessage(event: any, userId: string, corsHeaders: any) {
     // Save AI response
     const assistantMessage: ChatMessage = {
       userId,
-      messageId: uuidv4(),
+      messageId: randomUUID(),
       conversationId,
       timestamp: Date.now(),
       role: 'assistant',

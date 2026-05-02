@@ -1,7 +1,7 @@
 import { ScheduledHandler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { getIntradayBars, filterBarsByDate, sleep } from './utils/twelveData';
 import { aggregate5min, detectTrend, findKeyLevels, detectBreakout } from './utils/technicalAnalysis';
 import { calculateRRR, getRiskPercent, getPositionSize, validateMiniStructure } from './utils/tradeRuleEngine';
@@ -50,7 +50,7 @@ export const handler: ScheduledHandler = async () => {
   }
 
   const marketDate = getMarketDate();
-  const scanRunId = uuidv4();
+  const scanRunId = randomUUID();
   console.log(`Trade scan starting: marketDate=${marketDate} runId=${scanRunId} tickers=${WATCHLIST.length}`);
 
   // Mark scan as in-progress
