@@ -151,3 +151,25 @@ resource "aws_dynamodb_table" "trade_signals" {
 output "trade_signals_table_name" {
   value = aws_dynamodb_table.trade_signals.name
 }
+
+# ===== Watchlist Table =====
+# PK: symbol (ticker e.g. "AAPL"). Stores the scanner watchlist managed via UI.
+resource "aws_dynamodb_table" "watchlist" {
+  name         = "stines-solutions-watchlist"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "symbol"
+
+  attribute {
+    name = "symbol"
+    type = "S"
+  }
+
+  tags = {
+    Project     = "stines-solutions"
+    Environment = "production"
+  }
+}
+
+output "watchlist_table_name" {
+  value = aws_dynamodb_table.watchlist.name
+}

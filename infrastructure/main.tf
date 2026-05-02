@@ -498,11 +498,18 @@ resource "aws_iam_role_policy" "trade_scanner_lambda_policy" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["dynamodb:PutItem"]
-      Resource = [aws_dynamodb_table.trade_signals.arn]
-    }]
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:PutItem"]
+        Resource = [aws_dynamodb_table.trade_signals.arn]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:Scan"]
+        Resource = [aws_dynamodb_table.watchlist.arn]
+      }
+    ]
   })
 }
 
@@ -795,9 +802,9 @@ resource "aws_lambda_function" "trade_scanner_lambda" {
 
   environment {
     variables = {
-      TRADE_SIGNALS_TABLE   = aws_dynamodb_table.trade_signals.name
+      TRADE_SIGNALS_TABLE = aws_dynamodb_table.trade_signals.name
       TWELVE_DATA_API_KEY = var.twelve_data_api_key
-      WATCHLIST             = var.trade_watchlist
+      WATCHLIST_TABLE     = aws_dynamodb_table.watchlist.name
     }
   }
 }

@@ -1,6 +1,6 @@
 import { ScheduledHandler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { randomUUID } from 'crypto';
 import { getIntradayBars, filterBarsByDate, sleep } from './utils/twelveData';
 import { aggregate5min, detectTrend, findKeyLevels, detectBreakout } from './utils/technicalAnalysis';
@@ -11,8 +11,7 @@ const docClient = DynamoDBDocumentClient.from(client);
 
 const TRADE_SIGNALS_TABLE = process.env.TRADE_SIGNALS_TABLE!;
 const TWELVE_DATA_API_KEY = process.env.TWELVE_DATA_API_KEY!;
-// Comma-separated watchlist; default starter list based on historical trade log
-const WATCHLIST = (process.env.WATCHLIST || 'AAPL,MSFT,NVDA,AMZN,TSLA,AMD,NFLX,META,GOOGL,GPRO').split(',').map(s => s.trim());
+const WATCHLIST_TABLE = process.env.WATCHLIST_TABLE!;
 // 8 seconds between calls = 7.5 calls/min (respects free-tier rate limit of 8 req/min)
 const RATE_LIMIT_DELAY_MS = 8_000;
 
@@ -43,6 +42,12 @@ async function writeSignal(
   }));
 }
 
+async function loadWatchlist(): Promise<string[]> {
+  const result = await docClient.send(new ScanCommand({ TableName: WATCHLIST_TABLE }));
+  const items = result.Items ?? [];
+  return items.map((item) => item.symbol as string).sort();
+}
+
 export const handler: ScheduledHandler = async () => {
   if (!isWeekday()) {
     console.log('Weekend — skipping trade scan');
@@ -51,6 +56,13 @@ export const handler: ScheduledHandler = async () => {
 
   const marketDate = getMarketDate();
   const scanRunId = randomUUID();
+  const WATCHLIST = await loadWatchlist();
+
+  if (WATCHLIST.length === 0) {
+    console.log('Watchlist is empty — skipping trade scan');
+    return;
+  }
+
   console.log(`Trade scan starting: marketDate=${marketDate} runId=${scanRunId} tickers=${WATCHLIST.length}`);
 
   // Mark scan as in-progress
