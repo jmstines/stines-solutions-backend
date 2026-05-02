@@ -830,6 +830,49 @@ resource "aws_lambda_function" "trade_signals_lambda" {
   }
 }
 
+# ===== Watchlist Lambda (API Gateway /watchlist) =====
+resource "aws_iam_role" "watchlist_lambda_role" {
+  name               = "watchlist-lambda-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "watchlist_lambda_basic" {
+  role       = aws_iam_role.watchlist_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "watchlist_lambda_policy" {
+  name = "watchlist-lambda-policy"
+  role = aws_iam_role.watchlist_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:Scan", "dynamodb:PutItem", "dynamodb:DeleteItem"]
+      Resource = [aws_dynamodb_table.watchlist.arn]
+    }]
+  })
+}
+
+resource "aws_lambda_function" "watchlist_lambda" {
+  function_name = "watchlist-lambda"
+  role          = aws_iam_role.watchlist_lambda_role.arn
+  handler       = "watchlistHandler.handler"
+  runtime       = "nodejs20.x"
+  timeout       = 10
+
+  s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
+  s3_key           = var.lambda_code_s3_key
+  source_code_hash = data.aws_s3_object.lambda_zip.etag
+
+  environment {
+    variables = {
+      WATCHLIST_TABLE = aws_dynamodb_table.watchlist.name
+    }
+  }
+}
+
 # ===== EventBridge: trigger trade scanner weekdays at 5 PM ET (21:05 UTC) =====
 # Note: 21:05 UTC = 5:05 PM ET (EST); accounts for slight post-close data availability
 # DST: during EDT (Mar–Nov) this runs at 5:05 PM EDT. Adjust cron if needed.

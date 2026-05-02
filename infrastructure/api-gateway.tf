@@ -27,7 +27,12 @@ resource "aws_api_gateway_deployment" "backend_deployment" {
     aws_api_gateway_integration.chat_conversation_get,
     aws_api_gateway_integration.chat_conversation_delete,
     aws_api_gateway_integration.trade_signals_get,
-    aws_api_gateway_integration.trade_signals_options
+    aws_api_gateway_integration.trade_signals_options,
+    aws_api_gateway_integration.watchlist_get,
+    aws_api_gateway_integration.watchlist_post,
+    aws_api_gateway_integration.watchlist_options,
+    aws_api_gateway_integration.watchlist_symbol_delete,
+    aws_api_gateway_integration.watchlist_symbol_options,
   ]
 
   lifecycle {
@@ -58,6 +63,9 @@ resource "aws_api_gateway_deployment" "backend_deployment" {
       aws_api_gateway_resource.reset_password_resource.id,
       aws_api_gateway_resource.trade_signals_resource.id,
       aws_lambda_function.trade_signals_lambda.id,
+      aws_api_gateway_resource.watchlist_resource.id,
+      aws_api_gateway_resource.watchlist_symbol_resource.id,
+      aws_lambda_function.watchlist_lambda.id,
       aws_api_gateway_authorizer.session_authorizer.id,
       var.lambda_code_s3_key, # Auto-redeploy when Lambda code changes
     ]))
@@ -1022,6 +1030,144 @@ resource "aws_lambda_permission" "api_gateway_trade_signals" {
   statement_id  = "AllowAPIGatewayInvokeTradeSignals"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.trade_signals_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/*/*"
+}
+
+# ===== /watchlist Resource =====
+resource "aws_api_gateway_resource" "watchlist_resource" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  parent_id   = aws_api_gateway_rest_api.backend_api.root_resource_id
+  path_part   = "watchlist"
+}
+
+# GET /watchlist
+resource "aws_api_gateway_method" "watchlist_get" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.watchlist_resource.id
+  http_method   = "GET"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.session_authorizer.id
+}
+
+resource "aws_api_gateway_integration" "watchlist_get" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.watchlist_resource.id
+  http_method             = aws_api_gateway_method.watchlist_get.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.watchlist_lambda.invoke_arn
+}
+
+# POST /watchlist
+resource "aws_api_gateway_method" "watchlist_post" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.watchlist_resource.id
+  http_method   = "POST"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.session_authorizer.id
+}
+
+resource "aws_api_gateway_integration" "watchlist_post" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.watchlist_resource.id
+  http_method             = aws_api_gateway_method.watchlist_post.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.watchlist_lambda.invoke_arn
+}
+
+# OPTIONS /watchlist
+resource "aws_api_gateway_method" "watchlist_options" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.watchlist_resource.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "watchlist_options" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.watchlist_resource.id
+  http_method             = aws_api_gateway_method.watchlist_options.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.watchlist_lambda.invoke_arn
+}
+
+resource "aws_api_gateway_method_response" "watchlist_options" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  resource_id = aws_api_gateway_resource.watchlist_resource.id
+  http_method = aws_api_gateway_method.watchlist_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"      = true
+    "method.response.header.Access-Control-Allow-Methods"     = true
+    "method.response.header.Access-Control-Allow-Headers"     = true
+    "method.response.header.Access-Control-Allow-Credentials" = true
+  }
+}
+
+# /watchlist/{symbol}
+resource "aws_api_gateway_resource" "watchlist_symbol_resource" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  parent_id   = aws_api_gateway_resource.watchlist_resource.id
+  path_part   = "{symbol}"
+}
+
+# DELETE /watchlist/{symbol}
+resource "aws_api_gateway_method" "watchlist_symbol_delete" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.watchlist_symbol_resource.id
+  http_method   = "DELETE"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.session_authorizer.id
+}
+
+resource "aws_api_gateway_integration" "watchlist_symbol_delete" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.watchlist_symbol_resource.id
+  http_method             = aws_api_gateway_method.watchlist_symbol_delete.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.watchlist_lambda.invoke_arn
+}
+
+# OPTIONS /watchlist/{symbol}
+resource "aws_api_gateway_method" "watchlist_symbol_options" {
+  rest_api_id   = aws_api_gateway_rest_api.backend_api.id
+  resource_id   = aws_api_gateway_resource.watchlist_symbol_resource.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "watchlist_symbol_options" {
+  rest_api_id             = aws_api_gateway_rest_api.backend_api.id
+  resource_id             = aws_api_gateway_resource.watchlist_symbol_resource.id
+  http_method             = aws_api_gateway_method.watchlist_symbol_options.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.watchlist_lambda.invoke_arn
+}
+
+resource "aws_api_gateway_method_response" "watchlist_symbol_options" {
+  rest_api_id = aws_api_gateway_rest_api.backend_api.id
+  resource_id = aws_api_gateway_resource.watchlist_symbol_resource.id
+  http_method = aws_api_gateway_method.watchlist_symbol_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin"      = true
+    "method.response.header.Access-Control-Allow-Methods"     = true
+    "method.response.header.Access-Control-Allow-Headers"     = true
+    "method.response.header.Access-Control-Allow-Credentials" = true
+  }
+}
+
+resource "aws_lambda_permission" "api_gateway_watchlist" {
+  statement_id  = "AllowAPIGatewayInvokeWatchlist"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.watchlist_lambda.function_name
   principal     = "apigateway.amazonaws.com"
   source_arn    = "${aws_api_gateway_rest_api.backend_api.execution_arn}/*/*"
 }
