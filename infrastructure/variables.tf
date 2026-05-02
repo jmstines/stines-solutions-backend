@@ -26,8 +26,8 @@ variable "groq_api_key" {
   sensitive   = true
 }
 
-variable "alpha_vantage_api_key" {
-  description = "Alpha Vantage API key for stock market data"
+variable "twelve_data_api_key" {
+  description = "Twelve Data API key for stock market intraday data"
   type        = string
   sensitive   = true
 }

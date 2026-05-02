@@ -2,7 +2,7 @@ import { ScheduledHandler } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
-import { getIntradayBars, filterBarsByDate, sleep } from './utils/alphaVantage';
+import { getIntradayBars, filterBarsByDate, sleep } from './utils/twelveData';
 import { aggregate5min, detectTrend, findKeyLevels, detectBreakout } from './utils/technicalAnalysis';
 import { calculateRRR, getRiskPercent, getPositionSize, validateMiniStructure } from './utils/tradeRuleEngine';
 
@@ -10,11 +10,11 @@ const client = new DynamoDBClient({ region: 'us-east-1' });
 const docClient = DynamoDBDocumentClient.from(client);
 
 const TRADE_SIGNALS_TABLE = process.env.TRADE_SIGNALS_TABLE!;
-const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY!;
+const TWELVE_DATA_API_KEY = process.env.TWELVE_DATA_API_KEY!;
 // Comma-separated watchlist; default starter list based on historical trade log
 const WATCHLIST = (process.env.WATCHLIST || 'AAPL,MSFT,NVDA,AMZN,TSLA,AMD,NFLX,META,GOOGL,GPRO').split(',').map(s => s.trim());
-// 12 seconds between calls = 5 calls/min (respects free-tier rate limit of 5 req/min)
-const RATE_LIMIT_DELAY_MS = 12_000;
+// 8 seconds between calls = 7.5 calls/min (respects free-tier rate limit of 8 req/min)
+const RATE_LIMIT_DELAY_MS = 8_000;
 
 /** Get the current market date as YYYY-MM-DD in Eastern Time */
 function getMarketDate(): string {
@@ -72,7 +72,7 @@ export const handler: ScheduledHandler = async () => {
     try {
       console.log(`Scanning ${symbol} (${i + 1}/${WATCHLIST.length})...`);
 
-      const allBars = await getIntradayBars(symbol, ALPHA_VANTAGE_API_KEY);
+      const allBars = await getIntradayBars(symbol, TWELVE_DATA_API_KEY);
       const todayBars = filterBarsByDate(allBars, marketDate);
 
       if (todayBars.length < 30) {

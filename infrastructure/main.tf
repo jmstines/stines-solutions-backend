@@ -796,7 +796,7 @@ resource "aws_lambda_function" "trade_scanner_lambda" {
   environment {
     variables = {
       TRADE_SIGNALS_TABLE   = aws_dynamodb_table.trade_signals.name
-      ALPHA_VANTAGE_API_KEY = var.alpha_vantage_api_key
+      TWELVE_DATA_API_KEY = var.twelve_data_api_key
       WATCHLIST             = var.trade_watchlist
     }
   }

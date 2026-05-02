@@ -1,4 +1,4 @@
-import { OHLCVBar } from './alphaVantage';
+import { OHLCVBar } from './twelveData';
 
 export interface Bar5Min {
   time: string;
