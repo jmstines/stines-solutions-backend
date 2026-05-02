@@ -69,7 +69,7 @@ jobs:
           TF_VAR_source_email: ${{ secrets.SOURCE_EMAIL }}
           TF_VAR_destination_email: ${{ secrets.DESTINATION_EMAIL }}
           TF_VAR_groq_api_key: ${{ secrets.GROQ_API_KEY }}
-          TF_VAR_alpha_vantage_api_key: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+          TF_VAR_twelve_data_api_key: ${{ secrets.TWELVE_DATA_API_KEY }}
           GIT_SHA: ${{ github.sha }}
         run: |
           export TF_VAR_lambda_code_s3_key="backend/lambda/${GIT_SHA:0:7}.zip"
@@ -80,7 +80,7 @@ jobs:
           TF_VAR_source_email: ${{ secrets.SOURCE_EMAIL }}
           TF_VAR_destination_email: ${{ secrets.DESTINATION_EMAIL }}
           TF_VAR_groq_api_key: ${{ secrets.GROQ_API_KEY }}
-          TF_VAR_alpha_vantage_api_key: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+          TF_VAR_twelve_data_api_key: ${{ secrets.TWELVE_DATA_API_KEY }}
           GIT_SHA: ${{ github.sha }}
         if: github.ref == 'refs/heads/master' && github.event_name == 'push'
         run: |
