@@ -46,6 +46,7 @@ async function dispatch(skipWeekdayCheck = false): Promise<{ scanRunId: string; 
   }
 
   // Write _META_ record immediately so the frontend shows "processing"
+  const ttlSeconds = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // 30-day retention
   await dynamo.send(new PutCommand({
     TableName: TRADE_SIGNALS_TABLE,
     Item: {
@@ -56,6 +57,7 @@ async function dispatch(skipWeekdayCheck = false): Promise<{ scanRunId: string; 
       scanStatus: 'processing',
       totalTickers: watchlist.length,
       completedTickers: 0,
+      expiresAt: ttlSeconds,
     },
   }));
 

@@ -45,7 +45,8 @@ async function fetchAndCacheSymbols(): Promise<number> {
 
     const data: Array<{ symbol: string; name: string; exchange: string }> = json.data ?? [];
     for (const item of data) {
-      if (!seen.has(item.symbol) && item.symbol && item.name) {
+      // Only keep standard ticker symbols (1-5 uppercase letters, optional .X suffix for class shares)
+      if (!seen.has(item.symbol) && item.symbol && item.name && /^[A-Z]{1,5}(\.[A-Z]{1,2})?$/.test(item.symbol)) {
         seen.add(item.symbol);
         allSymbols.push({
           symbol: item.symbol,

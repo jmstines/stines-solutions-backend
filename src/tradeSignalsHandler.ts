@@ -22,6 +22,13 @@ function resolveMarketDate(dateParam?: string): string {
   return `${y}-${m}-${d}`;
 }
 
+/** Returns YYYY-MM-DD for a date N days before the given date string */
+function subtractDays(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
 export const handler: APIGatewayProxyHandler = async (event) => {
   const corsHeaders = getCorsHeaders(event.headers.origin || event.headers.Origin);
 
@@ -52,25 +59,41 @@ export const handler: APIGatewayProxyHandler = async (event) => {
       };
     }
 
-    const marketDate = resolveMarketDate(event.queryStringParameters?.date);
+    const requestedDate = resolveMarketDate(event.queryStringParameters?.date);
 
-    const result = await docClient.send(new QueryCommand({
-      TableName: TRADE_SIGNALS_TABLE,
-      KeyConditionExpression: 'marketDate = :date',
-      ExpressionAttributeValues: { ':date': marketDate },
-    }));
+    // If a specific date was requested, query only that date. Otherwise fall back
+    // through the last 7 days to find the most recent scan with data.
+    const dateExplicitlyRequested = !!event.queryStringParameters?.date;
+    const datesToTry = dateExplicitlyRequested
+      ? [requestedDate]
+      : Array.from({ length: 7 }, (_, i) => subtractDays(requestedDate, i));
 
-    const items = result.Items || [];
+    let items: Record<string, unknown>[] = [];
+    let resolvedDate = requestedDate;
+
+    for (const candidateDate of datesToTry) {
+      const result = await docClient.send(new QueryCommand({
+        TableName: TRADE_SIGNALS_TABLE,
+        KeyConditionExpression: 'marketDate = :date',
+        ExpressionAttributeValues: { ':date': candidateDate },
+      }));
+      if (result.Items && result.Items.length > 0) {
+        items = result.Items as Record<string, unknown>[];
+        resolvedDate = candidateDate;
+        break;
+      }
+    }
+
     const meta = items.find(item => item.symbol === '_META_');
     const signals = items
       .filter(item => item.symbol !== '_META_')
-      .sort((a, b) => a.symbol.localeCompare(b.symbol));
+      .sort((a, b) => (a.symbol as string).localeCompare(b.symbol as string));
 
     return {
       statusCode: 200,
       headers: corsHeaders,
       body: JSON.stringify({
-        marketDate,
+        marketDate: resolvedDate,
         scanStatus: meta?.scanStatus ?? 'no_data',
         scannedAt: meta?.scannedAt ?? null,
         totalTickers: meta?.totalTickers ?? 0,

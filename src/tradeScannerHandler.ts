@@ -24,9 +24,10 @@ async function writeSignal(
   scanRunId: string,
   data: Record<string, unknown>
 ): Promise<void> {
+  const expiresAt = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // 30-day retention
   await docClient.send(new PutCommand({
     TableName: TRADE_SIGNALS_TABLE,
-    Item: { marketDate, symbol, scanRunId, scannedAt: Date.now(), ...data },
+    Item: { marketDate, symbol, scanRunId, scannedAt: Date.now(), expiresAt, ...data },
   }));
 }
 
