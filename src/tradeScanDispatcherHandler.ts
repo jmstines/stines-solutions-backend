@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, ScheduledEvent } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, ScanCommand, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, ScanCommand, GetCommand, UpdateCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import { randomUUID } from 'crypto';
 import { getCorsHeaders, assertAllowedOrigin } from './utils/cors';
@@ -78,7 +78,31 @@ async function reserveDailyBudget(marketDate: string, requested: number): Promis
   return approved;
 }
 
-async function dispatch(skipWeekdayCheck = false): Promise<{ scanRunId: string; totalTickers: number; approvedTickers: number }> {
+/** Returns the set of symbols already scanned for the given market date. */
+async function loadAlreadyScanned(marketDate: string): Promise<Set<string>> {
+  const SPECIAL = new Set(['_META_', '_DAILY_BUDGET_']);
+  const scanned = new Set<string>();
+  let lastKey: Record<string, unknown> | undefined;
+
+  do {
+    const result = await dynamo.send(new QueryCommand({
+      TableName: TRADE_SIGNALS_TABLE,
+      KeyConditionExpression: 'marketDate = :date',
+      ExpressionAttributeValues: { ':date': marketDate },
+      ProjectionExpression: 'symbol',
+      ExclusiveStartKey: lastKey,
+    }));
+    for (const item of result.Items ?? []) {
+      const sym = item.symbol as string;
+      if (!SPECIAL.has(sym)) scanned.add(sym);
+    }
+    lastKey = result.LastEvaluatedKey as Record<string, unknown> | undefined;
+  } while (lastKey);
+
+  return scanned;
+}
+
+async function dispatch(skipWeekdayCheck = false): Promise<{ scanRunId: string; totalTickers: number; approvedTickers: number; skippedTickers: number }> {
   const marketDate = getMarketDate();
   const scanRunId = randomUUID();
   const watchlist = await loadWatchlist();
@@ -87,9 +111,22 @@ async function dispatch(skipWeekdayCheck = false): Promise<{ scanRunId: string; 
     throw new Error('Watchlist is empty');
   }
 
+  // Skip symbols already scanned today
+  const alreadyScanned = await loadAlreadyScanned(marketDate);
+  const pending = watchlist.filter((s) => !alreadyScanned.has(s));
+  const skippedCount = watchlist.length - pending.length;
+
+  if (pending.length === 0) {
+    throw new Error(`All ${watchlist.length} watchlist symbols already scanned for ${marketDate}`);
+  }
+
+  if (skippedCount > 0) {
+    console.log(`Skipping ${skippedCount} already-scanned symbols; ${pending.length} remaining`);
+  }
+
   // Reserve daily budget — trims list if approaching the limit
-  const approvedCount = await reserveDailyBudget(marketDate, watchlist.length);
-  const tickersToScan = watchlist.slice(0, approvedCount);
+  const approvedCount = await reserveDailyBudget(marketDate, pending.length);
+  const tickersToScan = pending.slice(0, approvedCount);
 
   // Write _META_ record immediately so the frontend shows "processing"
   const ttlSeconds = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // 30-day retention
@@ -122,7 +159,7 @@ async function dispatch(skipWeekdayCheck = false): Promise<{ scanRunId: string; 
   }
 
   console.log(`Dispatched ${tickersToScan.length} scan jobs for ${marketDate} runId=${scanRunId}`);
-  return { scanRunId, totalTickers: watchlist.length, approvedTickers: tickersToScan.length };
+  return { scanRunId, totalTickers: watchlist.length, approvedTickers: tickersToScan.length, skippedTickers: skippedCount };
 }
 
 /** Single handler for both EventBridge (scheduled) and API Gateway (POST /trade-scan/run) */
@@ -163,13 +200,18 @@ export const handler = async (
 
   try {
     const result = await dispatch(true);
+    const pending = result.totalTickers - result.skippedTickers;
+    const budgetTrimmed = result.approvedTickers < pending;
+    const message = [
+      `Scan dispatched for ${result.approvedTickers} tickers`,
+      result.skippedTickers > 0 ? `(${result.skippedTickers} already scanned today, skipped)` : null,
+      budgetTrimmed ? `(daily budget limited to ${result.approvedTickers} of ${pending} remaining)` : null,
+    ].filter(Boolean).join(' ');
     return {
       statusCode: 202,
       headers: corsHeaders,
       body: JSON.stringify({
-        message: result.approvedTickers < result.totalTickers
-          ? `Scan dispatched for ${result.approvedTickers} of ${result.totalTickers} tickers (daily budget limit)`
-          : `Scan dispatched for ${result.approvedTickers} tickers`,
+        message,
         scanRunId: result.scanRunId,
         totalTickers: result.approvedTickers,
       }),
