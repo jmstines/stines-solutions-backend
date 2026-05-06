@@ -32,8 +32,9 @@ variable "twelve_data_api_key" {
   sensitive   = true
 }
 
-variable "trade_watchlist" {
-  description = "Comma-separated list of ticker symbols to scan"
-  type        = string
-  default     = "AAPL,MSFT,NVDA,AMZN,TSLA,AMD,NFLX,META,GOOGL,GPRO"
+variable "daily_api_limit" {
+  description = "Maximum Twelve Data API calls per day (free tier = 800)"
+  type        = number
+  default     = 800
 }
+

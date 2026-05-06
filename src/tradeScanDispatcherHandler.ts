@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult, ScheduledEvent } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, ScanCommand, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import { randomUUID } from 'crypto';
 import { getCorsHeaders, assertAllowedOrigin } from './utils/cors';
@@ -11,10 +11,7 @@ const sqs = new SQSClient({ region: 'us-east-1' });
 const TRADE_SIGNALS_TABLE = process.env.TRADE_SIGNALS_TABLE!;
 const WATCHLIST_TABLE = process.env.WATCHLIST_TABLE!;
 const SCAN_QUEUE_URL = process.env.SCAN_QUEUE_URL!;
-// 8 seconds between worker invocations respects Twelve Data free-tier (8 calls/min)
-const RATE_LIMIT_DELAY_S = 8;
-// SQS max delay per message is 900 seconds (~112 tickers). Beyond that we'd need batching.
-const SQS_MAX_DELAY_S = 900;
+const DAILY_API_LIMIT = parseInt(process.env.DAILY_API_LIMIT ?? '800', 10);
 
 /** Get the current market date as YYYY-MM-DD in Eastern Time */
 function getMarketDate(): string {
@@ -33,10 +30,55 @@ function isWeekday(): boolean {
 
 async function loadWatchlist(): Promise<string[]> {
   const result = await dynamo.send(new ScanCommand({ TableName: WATCHLIST_TABLE }));
-  return (result.Items ?? []).map((item) => item.symbol as string).sort();
+  const symbols = (result.Items ?? []).map((item) => item.symbol as string);
+  // Deduplicate and sort
+  return [...new Set(symbols)].sort();
 }
 
-async function dispatch(skipWeekdayCheck = false): Promise<{ scanRunId: string; totalTickers: number }> {
+/**
+ * Check and reserve daily API budget.
+ * Returns the number of tickers approved — may be less than requested if budget is tight.
+ * Throws if the daily limit is already exhausted.
+ */
+async function reserveDailyBudget(marketDate: string, requested: number): Promise<number> {
+  const budgetKey = { marketDate, symbol: '_DAILY_BUDGET_' };
+
+  // Read current usage
+  const existing = await dynamo.send(new GetCommand({
+    TableName: TRADE_SIGNALS_TABLE,
+    Key: budgetKey,
+  }));
+  const usedToday: number = (existing.Item?.usedToday as number) ?? 0;
+  const remaining = DAILY_API_LIMIT - usedToday;
+
+  if (remaining <= 0) {
+    throw new Error(`Daily API limit of ${DAILY_API_LIMIT} calls already reached for ${marketDate}`);
+  }
+
+  const approved = Math.min(requested, remaining);
+
+  // Atomically reserve the approved count; condition guards against concurrent dispatches
+  const ttlSeconds = Math.floor(Date.now() / 1000) + 2 * 24 * 60 * 60; // 2-day TTL (budget resets daily)
+  await dynamo.send(new UpdateCommand({
+    TableName: TRADE_SIGNALS_TABLE,
+    Key: budgetKey,
+    UpdateExpression: 'ADD usedToday :count SET expiresAt = if_not_exists(expiresAt, :ttl)',
+    ConditionExpression: 'attribute_not_exists(usedToday) OR usedToday <= :maxAllowed',
+    ExpressionAttributeValues: {
+      ':count': approved,
+      ':maxAllowed': DAILY_API_LIMIT - approved,
+      ':ttl': ttlSeconds,
+    },
+  }));
+
+  if (approved < requested) {
+    console.warn(`Daily budget limited scan to ${approved}/${requested} tickers (${usedToday} already used today)`);
+  }
+
+  return approved;
+}
+
+async function dispatch(skipWeekdayCheck = false): Promise<{ scanRunId: string; totalTickers: number; approvedTickers: number }> {
   const marketDate = getMarketDate();
   const scanRunId = randomUUID();
   const watchlist = await loadWatchlist();
@@ -44,6 +86,10 @@ async function dispatch(skipWeekdayCheck = false): Promise<{ scanRunId: string; 
   if (watchlist.length === 0) {
     throw new Error('Watchlist is empty');
   }
+
+  // Reserve daily budget — trims list if approaching the limit
+  const approvedCount = await reserveDailyBudget(marketDate, watchlist.length);
+  const tickersToScan = watchlist.slice(0, approvedCount);
 
   // Write _META_ record immediately so the frontend shows "processing"
   const ttlSeconds = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // 30-day retention
@@ -55,30 +101,28 @@ async function dispatch(skipWeekdayCheck = false): Promise<{ scanRunId: string; 
       scanRunId,
       scannedAt: Date.now(),
       scanStatus: 'processing',
-      totalTickers: watchlist.length,
+      totalTickers: tickersToScan.length,
       completedTickers: 0,
       expiresAt: ttlSeconds,
     },
   }));
 
-  // Enqueue one message per ticker with staggered delays for rate limiting
-  for (let i = 0; i < watchlist.length; i++) {
-    const delaySeconds = Math.min(i * RATE_LIMIT_DELAY_S, SQS_MAX_DELAY_S);
+  // Enqueue one message per ticker — no delay, rate limiting handled by the poller Lambda
+  for (let i = 0; i < tickersToScan.length; i++) {
     await sqs.send(new SendMessageCommand({
       QueueUrl: SCAN_QUEUE_URL,
       MessageBody: JSON.stringify({
-        symbol: watchlist[i],
+        symbol: tickersToScan[i],
         marketDate,
         scanRunId,
         tickerIndex: i,
-        totalTickers: watchlist.length,
+        totalTickers: tickersToScan.length,
       }),
-      DelaySeconds: delaySeconds,
     }));
   }
 
-  console.log(`Dispatched ${watchlist.length} scan jobs for ${marketDate} runId=${scanRunId}`);
-  return { scanRunId, totalTickers: watchlist.length };
+  console.log(`Dispatched ${tickersToScan.length} scan jobs for ${marketDate} runId=${scanRunId}`);
+  return { scanRunId, totalTickers: watchlist.length, approvedTickers: tickersToScan.length };
 }
 
 /** Single handler for both EventBridge (scheduled) and API Gateway (POST /trade-scan/run) */
@@ -123,9 +167,11 @@ export const handler = async (
       statusCode: 202,
       headers: corsHeaders,
       body: JSON.stringify({
-        message: `Scan dispatched for ${result.totalTickers} tickers`,
+        message: result.approvedTickers < result.totalTickers
+          ? `Scan dispatched for ${result.approvedTickers} of ${result.totalTickers} tickers (daily budget limit)`
+          : `Scan dispatched for ${result.approvedTickers} tickers`,
         scanRunId: result.scanRunId,
-        totalTickers: result.totalTickers,
+        totalTickers: result.approvedTickers,
       }),
     };
   } catch (err) {

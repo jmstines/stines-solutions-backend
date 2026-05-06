@@ -1,4 +1,3 @@
-import { SQSHandler, SQSRecord } from 'aws-lambda';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { getIntradayBars, filterBarsByDate } from './utils/twelveData';
@@ -154,10 +153,7 @@ async function processOneTicker(msg: ScanMessage): Promise<void> {
   }
 }
 
-/** SQS event handler — processes exactly one ticker per invocation */
-export const handler: SQSHandler = async (event) => {
-  // batch_size=1 so there will always be exactly one record
-  const record: SQSRecord = event.Records[0];
-  const msg: ScanMessage = JSON.parse(record.body);
-  await processOneTicker(msg);
+/** Direct Lambda invocation handler — payload is a ScanMessage JSON object */
+export const handler = async (event: ScanMessage): Promise<void> => {
+  await processOneTicker(event);
 };

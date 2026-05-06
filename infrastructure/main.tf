@@ -492,11 +492,6 @@ resource "aws_iam_role_policy_attachment" "trade_scanner_lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "aws_iam_role_policy_attachment" "trade_scanner_sqs_execution" {
-  role       = aws_iam_role.trade_scanner_lambda_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole"
-}
-
 resource "aws_iam_role_policy" "trade_scanner_lambda_policy" {
   name = "trade-scanner-lambda-policy"
   role = aws_iam_role.trade_scanner_lambda_role.id
@@ -508,6 +503,42 @@ resource "aws_iam_role_policy" "trade_scanner_lambda_policy" {
         Effect   = "Allow"
         Action   = ["dynamodb:PutItem", "dynamodb:UpdateItem"]
         Resource = [aws_dynamodb_table.trade_signals.arn]
+      }
+    ]
+  })
+}
+
+# ----- Trade Scan Poller Lambda Role -----
+resource "aws_iam_role" "trade_scan_poller_role" {
+  name               = "trade-scan-poller-role"
+  assume_role_policy = local.lambda_assume_role_policy
+}
+
+resource "aws_iam_role_policy_attachment" "trade_scan_poller_basic" {
+  role       = aws_iam_role.trade_scan_poller_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "trade_scan_poller_policy" {
+  name = "trade-scan-poller-policy"
+  role = aws_iam_role.trade_scan_poller_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+        ]
+        Resource = [aws_sqs_queue.trade_scan_queue.arn]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["lambda:InvokeFunction"]
+        Resource = [aws_lambda_function.trade_scanner_lambda.arn]
       }
     ]
   })
@@ -538,7 +569,7 @@ resource "aws_iam_role_policy" "trade_scan_dispatcher_policy" {
       },
       {
         Effect   = "Allow"
-        Action   = ["dynamodb:PutItem"]
+        Action   = ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem"]
         Resource = [aws_dynamodb_table.trade_signals.arn]
       },
       {
@@ -859,20 +890,19 @@ resource "aws_lambda_function" "trade_scan_dispatcher_lambda" {
       TRADE_SIGNALS_TABLE = aws_dynamodb_table.trade_signals.name
       WATCHLIST_TABLE     = aws_dynamodb_table.watchlist.name
       SCAN_QUEUE_URL      = aws_sqs_queue.trade_scan_queue.url
+      DAILY_API_LIMIT     = var.daily_api_limit
     }
   }
 }
 
-# ===== Trade Scanner Lambda (SQS worker — one ticker per invocation) =====
+# ===== Trade Scanner Lambda (direct invocation by poller — one ticker per invocation) =====
 resource "aws_lambda_function" "trade_scanner_lambda" {
   function_name = "trade-scanner-lambda"
   role          = aws_iam_role.trade_scanner_lambda_role.arn
   handler       = "tradeScannerHandler.handler"
   runtime       = "nodejs20.x"
   # Each invocation processes exactly 1 ticker — 15s is more than enough
-  timeout                        = 15
-  # Concurrency=1 ensures sequential processing — no parallel Twelve Data calls
-  reserved_concurrent_executions = 1
+  timeout       = 15
 
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
   s3_key           = var.lambda_code_s3_key
@@ -886,12 +916,46 @@ resource "aws_lambda_function" "trade_scanner_lambda" {
   }
 }
 
-# Trigger worker Lambda from SQS (batch_size=1 = one ticker per invocation)
-resource "aws_lambda_event_source_mapping" "trade_scan_sqs_trigger" {
-  event_source_arn = aws_sqs_queue.trade_scan_queue.arn
-  function_name    = aws_lambda_function.trade_scanner_lambda.arn
-  batch_size       = 1
-  enabled          = true
+# ===== Trade Scan Poller Lambda (EventBridge every 1 min — drains SQS at 8 tickers/min) =====
+resource "aws_lambda_function" "trade_scan_poller_lambda" {
+  function_name = "trade-scan-poller-lambda"
+  role          = aws_iam_role.trade_scan_poller_role.arn
+  handler       = "tradeScanPollerHandler.handler"
+  runtime       = "nodejs20.x"
+  # Reads 8 messages and invokes scanner Lambdas 1s apart — max ~10s runtime
+  timeout       = 30
+
+  s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
+  s3_key           = var.lambda_code_s3_key
+  source_code_hash = data.aws_s3_object.lambda_zip.etag
+
+  environment {
+    variables = {
+      SCAN_QUEUE_URL         = aws_sqs_queue.trade_scan_queue.url
+      SCANNER_FUNCTION_NAME  = aws_lambda_function.trade_scanner_lambda.function_name
+    }
+  }
+}
+
+# EventBridge rule: fire poller every minute
+resource "aws_cloudwatch_event_rule" "trade_scan_poller_schedule" {
+  name                = "trade-scan-poller-schedule"
+  description         = "Drain the trade scan SQS queue at 8 tickers/min to respect Twelve Data rate limit"
+  schedule_expression = "rate(1 minute)"
+}
+
+resource "aws_cloudwatch_event_target" "trade_scan_poller_target" {
+  rule      = aws_cloudwatch_event_rule.trade_scan_poller_schedule.name
+  target_id = "TradeScanPollerLambda"
+  arn       = aws_lambda_function.trade_scan_poller_lambda.arn
+}
+
+resource "aws_lambda_permission" "eventbridge_trade_scan_poller" {
+  statement_id  = "AllowEventBridgeInvokeTradeScanPollerLambda"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.trade_scan_poller_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.trade_scan_poller_schedule.arn
 }
 
 # ===== Trade Signals API Lambda (API Gateway GET /trade-signals) =====
