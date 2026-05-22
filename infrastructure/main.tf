@@ -569,8 +569,11 @@ resource "aws_iam_role_policy" "trade_scan_dispatcher_policy" {
       },
       {
         Effect   = "Allow"
-        Action   = ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem"]
-        Resource = [aws_dynamodb_table.trade_signals.arn]
+        Action   = ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query"]
+        Resource = [
+          aws_dynamodb_table.trade_signals.arn,
+          "${aws_dynamodb_table.trade_signals.arn}/index/*"
+        ]
       },
       {
         Effect   = "Allow"
