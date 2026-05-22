@@ -640,7 +640,7 @@ resource "aws_lambda_function" "contact_lambda" {
   function_name = var.lambda_function_name
   role          = aws_iam_role.contact_lambda_role.arn
   handler       = "sendEmailApi.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
 
   # Use S3 artifacts from infrastructure project
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
@@ -663,7 +663,7 @@ resource "aws_lambda_function" "login_lambda" {
   function_name = "auth-login-lambda"
   role          = aws_iam_role.login_lambda_role.arn
   handler       = "loginHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
   timeout       = 10  # bcrypt + DynamoDB needs headroom
 
   # All Lambda functions share the same deployment package
@@ -684,7 +684,7 @@ resource "aws_lambda_function" "verify_lambda" {
   function_name = "auth-verify-lambda"
   role          = aws_iam_role.verify_lambda_role.arn
   handler       = "verifyHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
   timeout       = 10
 
   # All Lambda functions share the same deployment package
@@ -704,7 +704,7 @@ resource "aws_lambda_function" "logout_lambda" {
   function_name = "auth-logout-lambda"
   role          = aws_iam_role.logout_lambda_role.arn
   handler       = "logoutHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
   timeout       = 10
 
   # All Lambda functions share the same deployment package
@@ -723,7 +723,7 @@ resource "aws_lambda_function" "change_password_lambda" {
   function_name = "auth-change-password-lambda"
   role          = aws_iam_role.change_password_lambda_role.arn
   handler       = "changePasswordHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
   timeout       = 10  # Timeout for password hashing
 
   # All Lambda functions share the same deployment package
@@ -743,7 +743,7 @@ resource "aws_lambda_function" "create_user_lambda" {
   function_name = "auth-create-user-lambda"
   role          = aws_iam_role.create_user_lambda_role.arn
   handler       = "createUserHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
   timeout       = 10  # Timeout for password hashing
 
   # All Lambda functions share the same deployment package
@@ -763,7 +763,7 @@ resource "aws_lambda_function" "list_users_lambda" {
   function_name = "auth-list-users-lambda"
   role          = aws_iam_role.list_users_lambda_role.arn
   handler       = "listUsersHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
 
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
   s3_key           = var.lambda_code_s3_key
@@ -781,7 +781,7 @@ resource "aws_lambda_function" "delete_user_lambda" {
   function_name = "auth-delete-user-lambda"
   role          = aws_iam_role.delete_user_lambda_role.arn
   handler       = "deleteUserHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
 
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
   s3_key           = var.lambda_code_s3_key
@@ -799,7 +799,7 @@ resource "aws_lambda_function" "update_user_lambda" {
   function_name = "auth-update-user-lambda"
   role          = aws_iam_role.update_user_lambda_role.arn
   handler       = "updateUserHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
   timeout       = 10
 
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
@@ -818,7 +818,7 @@ resource "aws_lambda_function" "reset_user_password_lambda" {
   function_name = "auth-reset-user-password-lambda"
   role          = aws_iam_role.reset_user_password_lambda_role.arn
   handler       = "resetUserPasswordHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
   timeout       = 10  # Timeout for password hashing
 
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
@@ -837,7 +837,7 @@ resource "aws_lambda_function" "chat_lambda" {
   function_name = "chat-lambda"
   role          = aws_iam_role.chat_lambda_role.arn
   handler       = "chatHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
   timeout       = 30  # Increased timeout for API calls
 
   # All Lambda functions share the same deployment package
@@ -877,7 +877,7 @@ resource "aws_lambda_function" "trade_scan_dispatcher_lambda" {
   function_name = "trade-scan-dispatcher-lambda"
   role          = aws_iam_role.trade_scan_dispatcher_role.arn
   handler       = "tradeScanDispatcherHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
   # Dispatcher just reads watchlist + enqueues messages — should finish in a few seconds
   timeout       = 30
 
@@ -900,7 +900,7 @@ resource "aws_lambda_function" "trade_scanner_lambda" {
   function_name = "trade-scanner-lambda"
   role          = aws_iam_role.trade_scanner_lambda_role.arn
   handler       = "tradeScannerHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
   # Each invocation processes exactly 1 ticker — 15s is more than enough
   timeout       = 15
 
@@ -921,7 +921,7 @@ resource "aws_lambda_function" "trade_scan_poller_lambda" {
   function_name = "trade-scan-poller-lambda"
   role          = aws_iam_role.trade_scan_poller_role.arn
   handler       = "tradeScanPollerHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
   # Reads 8 messages and invokes scanner Lambdas 1s apart — max ~10s runtime
   timeout       = 30
 
@@ -963,7 +963,7 @@ resource "aws_lambda_function" "trade_signals_lambda" {
   function_name = "trade-signals-lambda"
   role          = aws_iam_role.trade_signals_lambda_role.arn
   handler       = "tradeSignalsHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
   timeout       = 10
 
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
@@ -1008,7 +1008,7 @@ resource "aws_lambda_function" "watchlist_lambda" {
   function_name = "watchlist-lambda"
   role          = aws_iam_role.watchlist_lambda_role.arn
   handler       = "watchlistHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
   timeout       = 10
 
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
@@ -1051,7 +1051,7 @@ resource "aws_lambda_function" "stock_symbols_lambda" {
   function_name = "stock-symbols-lambda"
   role          = aws_iam_role.stock_symbols_lambda_role.arn
   handler       = "stockSymbolsHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
   # Fetching two exchanges from Twelve Data takes a few seconds
   timeout       = 30
 
@@ -1116,7 +1116,7 @@ resource "aws_lambda_function" "authorizer_lambda" {
   function_name = "authorizer-lambda"
   role          = aws_iam_role.authorizer_lambda_role.arn
   handler       = "authorizerHandler.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs22.x"
   timeout       = 10
 
   s3_bucket        = data.terraform_remote_state.infrastructure.outputs.lambda_artifact_bucket
